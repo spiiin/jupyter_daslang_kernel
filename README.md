@@ -16,9 +16,10 @@ it does not interpret daslang in Python or replay previous cells.
 
 ## Runtime
 
-Windows x64, Python 3.12, **daslang master** in `C:\src\daScript`.
-The DLL is built from that tree and its standard library is loaded from the
-same tree. `Runtime` accepts either a source tree (`bin/Release`) or SDK (`bin`).
+Windows x64, AVX2, Python 3.12, **pinned daslang commit**
+`f916e0092ef38032dd81e8a55a231c3c4b4a5533`. The paths below show the
+development checkout in `C:\src\daScript`; choose your own source or release
+runtime directory. The DLL and standard library must come from the same build. `Runtime` accepts either a source tree (`bin/Release`) or SDK (`bin`).
 Set `DAS_SDK` or pass `--sdk` to use another compatible SDK.
 
 ```powershell
