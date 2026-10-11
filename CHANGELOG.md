@@ -1,15 +1,5 @@
 # Changelog
 
-## 0.11.0a1 — unreleased
-
-- `%%writefile [-a] PATH` saves a UTF-8 file directly from a notebook cell,
-  without compiling the body or changing session state. Quoted paths, parent
-  directories, atomic replacement and append mode are supported.
-- Macro modules can be written in notebook cells, required by subsequent cells,
-  and edited without restarting the kernel. Added a native AST-verified macro
-  example and an end-to-end notebook demonstrating reload and error recovery.
-- Completion, inspection and completeness checks recognize the file cell magic.
-
 ## 0.10.0a1 — experimental alpha
 
 First public release. Windows x64 and AVX2 only; verified with Python 3.12,

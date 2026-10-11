@@ -4,21 +4,19 @@ from ipykernel.kernelapp import IPKernelApp
 if __package__:
     from .worker_client import WorkerClient, WorkerInterrupted, WorkerCrashed
     from .editor_services import EditorServices
-    from .file_magics import parse_writefile, writefile
 else:
     from worker_client import WorkerClient, WorkerInterrupted, WorkerCrashed
     from editor_services import EditorServices
-    from file_magics import parse_writefile, writefile
 
 
 class DaslangKernel(Kernel):
     implementation = "daslang-jupyter"
-    implementation_version = "0.11.0a1"
+    implementation_version = "0.10.0a1"
     language = "daslang"
     language_version = "master"
     language_info = {"name": "daslang", "mimetype": "text/x-dascript",
                      "file_extension": ".das"}
-    banner = "Stateful daslang: mixed cells, inferred types, Interrupt, %eval, %reset, %%writefile."
+    banner = "Stateful daslang: mixed cells, inferred types, Interrupt, %eval, %reset."
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -40,13 +38,8 @@ class DaslangKernel(Kernel):
             def publish(name, text):
                 if not silent:
                     self.send_response(self.iopub_socket, "stream", {"name": name, "text": text})
-            file_request = parse_writefile(code)
-            if file_request is not None:
-                publish("stdout", writefile(file_request))
-                reply = {"status": "ok", "result": None}
-            else:
-                reply = self.worker_client.execute(code, on_output=publish,
-                                                   cell_label=f"In[{self.execution_count}]")
+            reply = self.worker_client.execute(code, on_output=publish,
+                                               cell_label=f"In[{self.execution_count}]")
         except (WorkerInterrupted, WorkerCrashed) as error:
             reply = {"status": "error", "output": {}, "error": {
                 "ename": "KeyboardInterrupt" if isinstance(error, WorkerInterrupted) else "RuntimeProcessError",
