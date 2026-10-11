@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "daslang-jupyter"
-version = "0.10.0a1"
+version = "0.11.0a1"
 description = "Experimental stateful daslang Jupyter kernel for Windows x64"
 readme = "README.md"
 license = {file = "LICENSE"}

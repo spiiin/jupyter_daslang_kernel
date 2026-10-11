@@ -3,9 +3,11 @@ import re
 if __package__:
     from .cell_parser import CellParser, CellSyntaxError, definition_key, definition_name
     from .persistent_types import SCALARS, parse_type
+    from .file_magics import parse_writefile, WRITEFILE_HELP
 else:
     from cell_parser import CellParser, CellSyntaxError, definition_key, definition_name
     from persistent_types import SCALARS, parse_type
+    from file_magics import parse_writefile, WRITEFILE_HELP
 
 
 KEYWORDS = set("var let def struct if elif else for while return yield break continue pass true false null unsafe const typeinfo typedecl array table".split()) | SCALARS
@@ -20,7 +22,7 @@ BUILTINS = {
     "range": "range(end) or range(begin, end)\nCreates a range for iteration.",
     "panic": "panic(message)\nRaises a recoverable daslang exception.",
 }
-MAGICS = {"%eval": "Evaluate an expression explicitly.", "%reset": "Discard all variables and definitions."}
+MAGICS = {"%%writefile": WRITEFILE_HELP, "%eval": "Evaluate an expression explicitly.", "%reset": "Discard all variables and definitions."}
 PREFIX = "[export]\ndef djnb_editor() {\n"
 
 
@@ -144,7 +146,7 @@ class EditorServices:
         start = cursor - len(word)
         reply = {"status": "ok", "matches": [], "cursor_start": start, "cursor_end": cursor, "metadata": {}}
         if mode != "code": return reply
-        magic = re.search(r"%[A-Za-z_]*$", prefix)
+        magic = re.search(r"%{1,2}[A-Za-z_]*$", prefix)
         if magic:
             reply.update(matches=[name for name in MAGICS if name.startswith(magic[0])], cursor_start=magic.start())
             return reply
@@ -167,6 +169,9 @@ class EditorServices:
     def inspect(self, code, cursor, detail_level=0):
         cursor = max(0, min(cursor, len(code)))
         reply = {"status": "ok", "found": False, "data": {}, "metadata": {}}
+        if cursor <= len(code.partition("\n")[0]) and re.match(r"^\s*%%writefile\b", code):
+            reply.update(found=True, data={"text/plain": WRITEFILE_HELP})
+            return reply
         if lexical_state(code[:cursor])[0] != "code": return reply
         tokens = list(re.finditer(r"[A-Za-z_]\w*(?:(?:\.[A-Za-z_]\w*)|(?:\[[^\]\n]*\]))*", code))
         token = next((m[0] for m in tokens if m.start() <= cursor <= m.end()), None)
@@ -218,6 +223,11 @@ class EditorServices:
         return reply
 
     def is_complete(self, code):
+        try:
+            if parse_writefile(code) is not None:
+                return {"status": "complete"}
+        except ValueError:
+            return {"status": "invalid"}
         stripped = code.strip()
         if not stripped or stripped == "%reset": return {"status": "complete"}
         if stripped.startswith("%eval "): code = code[code.index("%eval") + 6:]
