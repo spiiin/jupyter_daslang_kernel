@@ -14,6 +14,8 @@ The implementation uses Python's `ctypes`, the real daslang C ABI, and a small
 C++ context adapter for exception traces;
 it does not interpret daslang in Python or replay previous cells.
 
+![daslang code and execution output in Jupyter Notebook](docs/images/jupyter_das.png)
+
 ## Runtime
 
 Windows x64, AVX2, Python 3.12, **pinned daslang commit**
