@@ -38,7 +38,7 @@ python -m unittest -v test_session
 cd C:\src\daslang-jupyter
 python -m pip install build setuptools wheel
 python build_package.py --sdk C:\src\daScript
-python -m pip install "dist/daslang_jupyter-0.10.0a1-py3-none-win_amd64.whl[lab]"
+python -m pip install "dist/daslang_jupyter-0.11.0a1-py3-none-win_amd64.whl[lab]"
 python -m daslang_jupyter install --sdk C:\src\daScript
 python -m jupyterlab demo.ipynb
 ```
@@ -474,3 +474,63 @@ would be a separate extension of the supported state model.
 ## License
 
 See [LICENSE](LICENSE) for project code and [third-party notices](THIRD_PARTY_NOTICES.md) for bundled components.
+
+## Macro modules written in notebook cells (0.11)
+
+A daslang macro must be defined in a separate module from its use. Ordinary
+`require ./notebook_macros.das` compiles that module using the native compiler.
+The kernel now supports creating/editing it directly in a cell:
+
+```das
+%%writefile notebook_macros.das
+options gen2
+module notebook_macros public
+require daslib/ast
+require daslib/ast_boost
+require daslib/templates_boost
+require daslib/macro_boost
+require daslib/ast_verify
+
+[call_macro(name="plus_one")]
+class PlusOneMacro : AstCallMacro {
+    def override visit(prog:ProgramPtr; mod:Module?; var expr:ExprCallMacro?):ExpressionPtr {
+        macro_verify(length(expr.arguments)==1, prog, expr.at, "plus_one expects one argument")
+        var result <- qmacro($e(clone_expression(expr.arguments[0])) + 1)
+        verify_expression(result)
+        return <- result
+    }
+}
+```
+
+Then execute a separate ordinary cell:
+
+```das
+require ./notebook_macros.das
+var value = 40
+plus_one(value) // 41
+```
+
+`%%writefile [-a] PATH` saves the remaining cell exactly as UTF-8 text. Quote
+paths containing spaces; Windows backslashes are preserved. Missing parent
+folders are created. Overwrite uses a temporary file and atomic replacement;
+`-a` appends. The cell body is not compiled/executed and session values are not
+changed. It works before runtime initialization and can repair a broken module
+before worker checkpoint restoration. Relative paths use the kernel's working
+folder, normally the notebook directory.
+
+Re-execute the file cell after changing a macro, then execute a normal cell to
+compile with the updated source. The existing fresh-user-module policy also
+refreshes `module shared`. Compiler errors leave the preceding committed session
+intact; repair the file and run another cell. Macro bodies execute at compilation
+time and may run multiple times during inference/recompilation. Macro-time
+registries are not notebook globals or checkpointed values. File changes are
+external side effects: Interrupt and `%reset` do not undo them. Required files
+must remain available for checkpoint recovery.
+
+This adds file creation/editing, not a second macro interpreter. Annotation,
+call and other macros supported by the selected compiler can live in `.das`
+modules. Their emitted notebook code still has to fit the kernel's supported
+persistent-value and Tree-sitter syntax subset; imported macro names are not yet
+included in semantic completion. Direct macro-class definitions inside ordinary
+notebook cells are not supported. `macro-cells-demo.ipynb` and
+`examples/notebook_macros.das` contain the tested call-macro example.
