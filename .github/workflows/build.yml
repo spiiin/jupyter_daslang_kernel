@@ -103,4 +103,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.ref_name }}
-        run: gh release create "$RELEASE_TAG" release/* --verify-tag --prerelease --title "daslang Jupyter $RELEASE_TAG (experimental alpha)" --notes-file CHANGELOG.md
+        run: |
+          draft=$(gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft' 2>/dev/null || true)
+          if [ "$draft" = "true" ]; then
+            gh release upload "$RELEASE_TAG" release/* --clobber
+            gh release edit "$RELEASE_TAG" --draft=false --prerelease --title "daslang Jupyter $RELEASE_TAG (experimental alpha)" --notes-file CHANGELOG.md
+          elif [ "$draft" = "false" ]; then
+            echo "Release already published; preserving its existing paired artifacts."
+          else
+            gh release create "$RELEASE_TAG" release/* --verify-tag --prerelease --title "daslang Jupyter $RELEASE_TAG (experimental alpha)" --notes-file CHANGELOG.md
+          fi
