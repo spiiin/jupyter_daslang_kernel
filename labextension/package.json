@@ -1,0 +1,48 @@
+{
+  "name": "jupyterlab-daslang",
+  "version": "0.1.0",
+  "private": true,
+  "description": "daslang syntax highlighting for JupyterLab 4",
+  "main": "lib/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc && python -m jupyter labextension build . && node scripts/finalize.mjs",
+    "test": "tsc && node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "@codemirror/language": "^6.10.0",
+    "@jupyterlab/codemirror": "~4.2.5",
+    "@lezer/highlight": "^1.2.0"
+  },
+  "devDependencies": {
+    "@jupyterlab/application": "~4.2.5",
+    "@jupyterlab/builder": "~4.2.5",
+    "playwright": "1.64.0",
+    "typescript": "~5.5.4",
+    "webpack": "5.97.1"
+  },
+  "jupyterlab": {
+    "extension": true,
+    "outputDir": "labextension",
+    "sharedPackages": {
+      "@jupyterlab/codemirror": {
+        "bundled": false,
+        "singleton": true
+      },
+      "@codemirror/language": {
+        "bundled": false,
+        "singleton": true
+      },
+      "@lezer/highlight": {
+        "bundled": false,
+        "singleton": true
+      }
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/spiiin/jupyter_daslang_kernel.git",
+    "directory": "labextension"
+  },
+  "license": "BSD-3-Clause"
+}

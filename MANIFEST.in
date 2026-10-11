@@ -1,0 +1,12 @@
+include LICENSE CHANGELOG.md RELEASE.md CONTRIBUTING.md THIRD_PARTY_NOTICES.md requirements-build.txt build_runtime_bundle.py
+include README.md pyproject.toml setup.py build_package.py msvc-compat.cmake
+include *.py
+recursive-include native *.cpp *.h CMakeLists.txt
+recursive-include parser CMakeLists.txt
+recursive-include _bin *.dll *LICENSE.txt
+recursive-include tests *.txt *.py
+include *demo.ipynb
+recursive-include examples *.das
+prune build
+prune native/build
+prune parser/build

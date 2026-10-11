@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=75", "wheel>=0.44"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "daslang-jupyter"
+version = "0.10.0a1"
+description = "Experimental stateful daslang Jupyter kernel for Windows x64"
+readme = "README.md"
+license = {file = "LICENSE"}
+requires-python = ">=3.12"
+authors = [{name = "spiiin"}]
+dependencies = ["ipykernel>=6.29,<7", "jupyter-client>=8,<9"]
+classifiers = ["Development Status :: 3 - Alpha", "Operating System :: Microsoft :: Windows"]
+
+[project.optional-dependencies]
+lab = ["jupyterlab>=4,<5"]
+
+[project.urls]
+Homepage = "https://github.com/spiiin/jupyter_daslang_kernel"
+Issues = "https://github.com/spiiin/jupyter_daslang_kernel/issues"
+
+[project.scripts]
+daslang-jupyter = "daslang_jupyter.cli:main"
+
+[tool.setuptools]
+packages = ["daslang_jupyter"]
+package-dir = {daslang_jupyter = "."}
+include-package-data = false
+
+[tool.setuptools.package-data]
+daslang_jupyter = ["_bin/*.dll", "_bin/*LICENSE.txt"]

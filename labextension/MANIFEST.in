@@ -1,0 +1,10 @@
+include LICENSE
+include install.json daslang-LICENSE.txt
+recursive-include scripts *.mjs
+include package.json package-lock.json tsconfig.json README.md
+recursive-include src *.ts
+recursive-include tests *.mjs
+recursive-include labextension *
+prune node_modules
+prune lib
+prune build

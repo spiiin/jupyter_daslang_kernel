@@ -1,0 +1,106 @@
+name: Build and verify alpha release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: labextension/package-lock.json
+      - name: Checkout pinned daslang
+        uses: actions/checkout@v4
+        with:
+          repository: GaijinEntertainment/daScript
+          ref: f916e0092ef38032dd81e8a55a231c3c4b4a5533
+          submodules: recursive
+          path: .runtime-source
+      - name: Build dependencies
+        run: python -m pip install -r requirements-build.txt
+      - name: Build runtime
+        shell: pwsh
+        run: |
+          $sdk = Join-Path $env:GITHUB_WORKSPACE '.runtime-source'
+          $compat = (Join-Path $env:GITHUB_WORKSPACE 'msvc-compat.cmake').Replace('\','/')
+          cmake -S $sdk -B "$sdk/build-jupyter" -G "Visual Studio 17 2022" -A x64 "-DDAS_MODULES_INCLUDE=" -DDAS_TOOLS_DISABLED=ON -DDAS_TESTS_DISABLED=ON -DDAS_TUTORIAL_DISABLED=ON -DDAS_AOT_EXAMPLES_DISABLED=ON -DDAS_FLEX_BISON_DISABLED=ON "-DCMAKE_PROJECT_INCLUDE=$compat"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cmake --build "$sdk/build-jupyter" --config Release --target libDaScriptDyn --parallel 4 -- /nodeReuse:false
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          "DAS_SDK=$sdk" >> $env:GITHUB_ENV
+      - name: Build kernel artifacts and runtime bundle
+        shell: pwsh
+        run: |
+          python build_package.py --sdk $env:DAS_SDK
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -m build --sdist --no-isolation
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python build_runtime_bundle.py --sdk $env:DAS_SDK
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Session and Jupyter protocol tests
+        run: python -m unittest discover -v
+      - name: Build and test frontend
+        working-directory: labextension
+        shell: pwsh
+        run: |
+          npm ci
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          npm test
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          npm run build
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -m build --no-isolation
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Verify clean installation with relocated runtime
+        run: python tests/verify_release.py --artifacts dist --frontend labextension/dist --work .release-test
+      - name: Package metadata checks
+        run: python -m twine check dist/*.whl dist/*.tar.gz labextension/dist/*.whl labextension/dist/*.tar.gz
+      - name: Assemble release and checksums
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force release | Out-Null
+          Copy-Item dist/*.whl,dist/*.tar.gz,dist/*.zip,labextension/dist/*.whl,labextension/dist/*.tar.gz release/
+          Get-ChildItem release -File | Sort-Object Name | ForEach-Object { "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)" } | Set-Content release/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: daslang-jupyter-windows-alpha
+          path: release/*
+          if-no-files-found: error
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: windows
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: daslang-jupyter-windows-alpha
+          path: release
+      - name: Verify release tag matches package version
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          python -c 'import os,tomllib; v=tomllib.load(open("pyproject.toml","rb"))["project"]["version"]; assert os.environ["RELEASE_TAG"] == "v"+v'
+      - name: Publish GitHub prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: gh release create "$RELEASE_TAG" release/* --verify-tag --prerelease --title "daslang Jupyter $RELEASE_TAG (experimental alpha)" --notes-file CHANGELOG.md

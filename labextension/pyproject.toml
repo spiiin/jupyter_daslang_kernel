@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=75", "wheel>=0.44"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jupyterlab-daslang"
+version = "0.1.0"
+description = "daslang syntax highlighting for JupyterLab 4"
+readme = "README.md"
+license = {file = "LICENSE"}
+requires-python = ">=3.9"
+dependencies = ["jupyterlab>=4.2,<5"]
+classifiers = ["Framework :: Jupyter", "Framework :: Jupyter :: JupyterLab", "Framework :: Jupyter :: JupyterLab :: 4", "Framework :: Jupyter :: JupyterLab :: Extensions", "Framework :: Jupyter :: JupyterLab :: Extensions :: Prebuilt"]
+
+[project.urls]
+Homepage = "https://github.com/spiiin/jupyter_daslang_kernel"
+Issues = "https://github.com/spiiin/jupyter_daslang_kernel/issues"
+
+[tool.setuptools]
+packages = []

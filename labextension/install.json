@@ -1,0 +1,5 @@
+{
+  "packageManager": "python",
+  "packageName": "jupyterlab-daslang",
+  "uninstallInstructions": "Use python -m pip uninstall jupyterlab-daslang"
+}

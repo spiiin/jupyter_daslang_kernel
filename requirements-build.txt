@@ -1,0 +1,9 @@
+build==1.2.2.post1
+setuptools==75.6.0
+wheel==0.45.1
+twine==6.1.0
+ipykernel==6.29.5
+jupyter-client==8.6.3
+jupyterlab==4.2.5
+nbclient==0.10.2
+nbformat==5.10.4
