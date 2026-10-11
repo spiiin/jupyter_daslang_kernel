@@ -31,6 +31,8 @@ machine. Runtime files must remain available at the path recorded in kernelspec.
 Moving them requires reinstalling the kernelspec. Do not mix a wheel with a
 runtime ZIP from another build, even at the same source commit: the adapter
 verifies the exact runtime DLL hash. `manifest.json` records bundled file hashes.
+Release assets also include `SHA256SUMS.txt`; compare a download with
+`Get-FileHash <downloaded-file> -Algorithm SHA256` before installing that artifact.
 The tested JupyterLab 4.2.5 environment pins httpx 0.27.2 because its extension
 manager uses the older proxy API. Newer JupyterLab releases need separate testing.
 
