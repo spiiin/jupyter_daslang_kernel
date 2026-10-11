@@ -44,5 +44,5 @@
     "url": "https://github.com/spiiin/jupyter_daslang_kernel.git",
     "directory": "labextension"
   },
-  "license": "BSD-3-Clause"
+  "license": "MIT"
 }
