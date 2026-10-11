@@ -35,6 +35,7 @@ def main():
     env.update(DAS_SDK=str(sdk), DAS_TEST_KERNEL_NAME="daslang-release-test",
                PYTHONNOUSERSITE="1", JUPYTER_CONFIG_DIR=str(work / "jupyter-config"),
                JUPYTER_DATA_DIR=str(work / "jupyter-data"))
+    env["PATH"] = str(python.parent) + os.pathsep + env.get("PATH", "")
 
     def run(*command):
         subprocess.run([str(python), *map(str, command)], cwd=work, env=env, check=True)
@@ -45,7 +46,8 @@ def main():
         parser.error("Provide exactly one kernel wheel and one frontend wheel")
     kernel, frontend = kernels[0], frontends[0]
     run("-m", "pip", "install", kernel, frontend, "jupyterlab==4.2.5",
-        "nbclient==0.10.2", "nbformat==5.10.4", "ipykernel==6.29.5", "jupyter-client==8.6.3")
+        "httpx==0.27.2", "nbclient==0.10.2", "nbformat==5.10.4",
+        "ipykernel==6.29.5", "jupyter-client==8.6.3")
     run("-m", "pip", "check")
     run("-m", "daslang_jupyter", "check", "--sdk", sdk)
     run("-m", "daslang_jupyter", "install", "--sdk", sdk,
@@ -53,6 +55,8 @@ def main():
     shutil.copy2(root / "tests/verify_installed_package.py", work)
     run("verify_installed_package.py")
     run("-m", "jupyter", "labextension", "list")
+    shutil.copy2(root / "tests/verify_server.py", work)
+    run("verify_server.py")
     shutil.copy2(root / "module-state-demo.ipynb", work)
     shutil.copytree(root / "examples", work / "examples")
     shutil.copy2(root / "tests/execute_release_notebook.py", work)

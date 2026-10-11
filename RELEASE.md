@@ -16,7 +16,7 @@ Redistributable if absent. Extract the runtime ZIP to a permanent location:
 ```powershell
 Expand-Archive .\daslang-runtime-win_amd64.zip -DestinationPath C:\tools\daslang-jupyter
 py -3.12 -m venv .venv
-.\.venv\Scripts\python -m pip install ".\daslang_jupyter-0.10.0a1-py3-none-win_amd64.whl[lab]" .\jupyterlab_daslang-0.1.0-py3-none-any.whl
+.\.venv\Scripts\python -m pip install ".\daslang_jupyter-0.10.0a1-py3-none-win_amd64.whl[lab]" .\jupyterlab_daslang-0.1.0-py3-none-any.whl "jupyterlab==4.2.5" "httpx==0.27.2"
 .\.venv\Scripts\python -m daslang_jupyter check --sdk C:\tools\daslang-jupyter\daslang-runtime
 .\.venv\Scripts\python -m daslang_jupyter install --sdk C:\tools\daslang-jupyter\daslang-runtime --sys-prefix
 .\.venv\Scripts\python -m jupyterlab
@@ -31,6 +31,8 @@ machine. Runtime files must remain available at the path recorded in kernelspec.
 Moving them requires reinstalling the kernelspec. Do not mix a wheel with a
 runtime ZIP from another build, even at the same source commit: the adapter
 verifies the exact runtime DLL hash. `manifest.json` records bundled file hashes.
+The tested JupyterLab 4.2.5 environment pins httpx 0.27.2 because its extension
+manager uses the older proxy API. Newer JupyterLab releases need separate testing.
 
 ## Build from source
 
