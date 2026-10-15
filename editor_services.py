@@ -4,10 +4,12 @@ if __package__:
     from .cell_parser import CellParser, CellSyntaxError, definition_key, definition_name
     from .persistent_types import SCALARS, parse_type
     from .file_magics import parse_writefile, WRITEFILE_HELP
+    from .strudel_magic import parse_strudel, STRUDEL_HELP
 else:
     from cell_parser import CellParser, CellSyntaxError, definition_key, definition_name
     from persistent_types import SCALARS, parse_type
     from file_magics import parse_writefile, WRITEFILE_HELP
+    from strudel_magic import parse_strudel, STRUDEL_HELP
 
 
 KEYWORDS = set("var let def struct if elif else for while return yield break continue pass true false null unsafe const typeinfo typedecl array table".split()) | SCALARS
@@ -22,7 +24,7 @@ BUILTINS = {
     "range": "range(end) or range(begin, end)\nCreates a range for iteration.",
     "panic": "panic(message)\nRaises a recoverable daslang exception.",
 }
-MAGICS = {"%%writefile": WRITEFILE_HELP, "%eval": "Evaluate an expression explicitly.", "%reset": "Discard all variables and definitions."}
+MAGICS = {"%%strudel": STRUDEL_HELP, "%%writefile": WRITEFILE_HELP, "%eval": "Evaluate an expression explicitly.", "%reset": "Discard all variables and definitions."}
 PREFIX = "[export]\ndef djnb_editor() {\n"
 
 
@@ -223,6 +225,13 @@ class EditorServices:
         return reply
 
     def is_complete(self, code):
+        try:
+            request = parse_strudel(code)
+            if request is not None:
+                options, body = request
+                return {"status": "complete"} if options.get("stop") else self.is_complete(body)
+        except ValueError:
+            return {"status": "invalid"}
         try:
             if parse_writefile(code) is not None:
                 return {"status": "complete"}

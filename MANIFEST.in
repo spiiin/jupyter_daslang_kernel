@@ -6,6 +6,7 @@ recursive-include parser CMakeLists.txt
 recursive-include _bin *.dll *LICENSE.txt
 recursive-include tests *.txt *.py
 include *demo.ipynb
+include Dastrudel.ipynb strudel_host.das
 recursive-include examples *.das
 prune build
 prune native/build

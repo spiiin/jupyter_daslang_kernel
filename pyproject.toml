@@ -29,4 +29,4 @@ package-dir = {daslang_jupyter = "."}
 include-package-data = false
 
 [tool.setuptools.package-data]
-daslang_jupyter = ["_bin/*.dll", "_bin/*LICENSE.txt"]
+daslang_jupyter = ["_bin/*.dll", "_bin/*LICENSE.txt", "strudel_host.das"]
