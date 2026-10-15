@@ -534,3 +534,58 @@ persistent-value and Tree-sitter syntax subset; imported macro names are not yet
 included in semantic completion. Direct macro-class definitions inside ordinary
 notebook cells are not supported. `macro-cells-demo.ipynb` and
 `examples/notebook_macros.das` contain the tested call-macro example.
+
+
+## daStrudel notebook cells
+
+`%%strudel` defines zero-argument functions using real daStrudel notation:
+
+```das
+%%strudel --exe "C:/path/to/daslang-live.exe"
+def bells() {
+    strudel_add_track(note("a4 ~ c5 e5", "sine") |> gain(0.15))
+}
+```
+
+Call `bells()` in a normal cell. Edit and execute its definition cell again to
+replace the active named pattern at the next safe whole-cycle boundary, without
+restarting the transport, other patterns, their voices or their effect tails.
+Multiple affected patterns from one definition cell are committed at the same
+boundary. The headroom for already-scheduled audio is a quarter cycle; at the
+fixed default 120 BPM a change can take up to about 2.5 seconds to take effect.
+Repeated calls activate/replace the same name rather than accumulating tracks.
+
+```das
+strudel_stop("bells")  // stop new notes at a common-cycle boundary; tails decay
+bells()                // resume the saved pattern on the shared timeline
+strudel_status()        // shared seconds/cycle/CPS and per-pattern diagnostics
+```
+
+There is **one permanent daslang-live process, one audio stream and one sample
+clock** per notebook. Pattern definitions compile on the host's main thread into
+retained daScript contexts while the audio thread keeps rendering. Contexts
+produce Hap data for the scheduler's absolute query spans; they are not players,
+have no audio devices and do not load separate SF2 banks. Compilation errors do
+not replace active versions. Old contexts are released after the audio thread
+acknowledges the swap and no current/pending pattern refers to them.
+
+Definitions accumulate by name; dependencies and transitive callers are updated.
+The function body constructs patterns when its definition is compiled, not on
+each `name()` activation. Only plain `def name() { ... }` functions are supported:
+no parameters, return values, notebook globals or native resource handles cross
+the boundary. `strudel_add_track(pattern, level)` collects patterns for that name;
+multiple calls inside one function compose one named group. All the normal
+daStrudel pattern combinators operate on the actual requested cycle spans, not a
+pre-rendered or repeating snapshot. Additional top-level requires/statements and
+audio-control operations inside the pattern functions are not supported.
+
+Set `DASLANG_LIVE` or supply `--exe` in the first cell. Optional `--sf2 PATH` loads
+one bank in the host. `--port N` selects its local API port; otherwise a free port
+is chosen. `%%strudel --stop` closes the player but retains notebook definitions;
+re-run a definition cell to start it again. `%reset` and normal kernel shutdown
+also close the player. Unrelated daslang processes are not affected.
+
+The SDK needs runtime compilation (`rtti`/`debugapi`), daStrudel and dasLiveHost.
+Notebook wrappers use `curl` and `daslib/fio.run_and_capture`; audio is never run
+in the notebook's checkpointed worker. Restart the kernel after upgrading, then
+reload `Dastrudel.ipynb` from disk to see the shared-player example.

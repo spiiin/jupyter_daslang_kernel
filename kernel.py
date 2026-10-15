@@ -5,10 +5,12 @@ if __package__:
     from .worker_client import WorkerClient, WorkerInterrupted, WorkerCrashed
     from .editor_services import EditorServices
     from .file_magics import parse_writefile, writefile
+    from .strudel_magic import StrudelMagic, parse_strudel
 else:
     from worker_client import WorkerClient, WorkerInterrupted, WorkerCrashed
     from editor_services import EditorServices
     from file_magics import parse_writefile, writefile
+    from strudel_magic import StrudelMagic, parse_strudel
 
 
 class DaslangKernel(Kernel):
@@ -18,11 +20,12 @@ class DaslangKernel(Kernel):
     language_version = "master"
     language_info = {"name": "daslang", "mimetype": "text/x-dascript",
                      "file_extension": ".das"}
-    banner = "Stateful daslang: mixed cells, inferred types, Interrupt, %eval, %reset, %%writefile."
+    banner = "Stateful daslang: mixed cells, inferred types, Interrupt, %eval, %reset, %%writefile, %%strudel."
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.worker_client = WorkerClient()
+        self.strudel = StrudelMagic()
         self.editor = EditorServices(lambda: self.worker_client.state)
 
     def do_complete(self, code, cursor_pos):
@@ -40,11 +43,18 @@ class DaslangKernel(Kernel):
             def publish(name, text):
                 if not silent:
                     self.send_response(self.iopub_socket, "stream", {"name": name, "text": text})
+            strudel_request = parse_strudel(code)
             file_request = parse_writefile(code)
-            if file_request is not None:
+            if strudel_request is not None:
+                reply = self.strudel.execute(strudel_request, self.worker_client, publish,
+                                             f"In[{self.execution_count}]")
+            elif file_request is not None:
                 publish("stdout", writefile(file_request))
                 reply = {"status": "ok", "result": None}
             else:
+                if code.strip() == "%reset":
+                    self.strudel.close()
+                    self.strudel = StrudelMagic()
                 reply = self.worker_client.execute(code, on_output=publish,
                                                    cell_label=f"In[{self.execution_count}]")
         except (WorkerInterrupted, WorkerCrashed) as error:
@@ -74,6 +84,7 @@ class DaslangKernel(Kernel):
         self.session.send(stream, "interrupt_reply", {"status": "ok"}, parent, ident=ident)
 
     def do_shutdown(self, restart):
+        self.strudel.close()
         self.worker_client.close()
         return {"status": "ok", "restart": restart}
 
