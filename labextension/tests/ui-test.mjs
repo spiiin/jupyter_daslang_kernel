@@ -10,7 +10,7 @@ const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
 const errors = [];
 page.on('pageerror', error => errors.push(error.message));
 try {
-  await page.goto('http://127.0.0.1:8893/lab/workspaces/daslang-highlight-check/tree/highlighting-demo.ipynb?token=daslang-highlight-test', { waitUntil: 'domcontentloaded' });
+  await page.goto('http://127.0.0.1:8893/lab/workspaces/daslang-highlight-check/tree/examples/highlighting-demo.ipynb?token=daslang-highlight-test', { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(5000);
   await page.screenshot({path: process.env.DAS_HIGHLIGHT_SCREENSHOT || 'highlighting-check.png',fullPage:true});
   await page.locator('.jp-Notebook .jp-CodeCell .cm-content:visible').first().waitFor({ timeout: 60000 });
