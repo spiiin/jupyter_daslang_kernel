@@ -589,3 +589,43 @@ The SDK needs runtime compilation (`rtti`/`debugapi`), daStrudel and dasLiveHost
 Notebook wrappers use `curl` and `daslib/fio.run_and_capture`; audio is never run
 in the notebook's checkpointed worker. Restart the kernel after upgrading, then
 reload `Dastrudel.ipynb` from disk to see the shared-player example.
+
+
+## Macro expansion and AST inspection
+
+`%expand EXPRESSION` shows the compiler's inferred code after macro expansion.
+`%expand FUNCTION` shows all concrete overloads of a stored function. `%%expand`
+accepts a whole cell and prints inferred functions and structures. `%%ast`
+shows expression-node kinds, types and variable/constant values, plus structure
+fields and functions emitted by macros.
+
+```das
+%expand plus_one(value)
+```
+
+```das
+%%ast
+var temporary = plus_one(value)
+print("{temporary}")
+```
+
+These commands compile a separate temporary program against the current session's
+requires, definitions and global types. They do not simulate the fragment, invoke
+its runtime functions, restore its runtime values, or commit its variables,
+imports or definitions. Compilation errors preserve the session. Imported macro
+source edits are picked up on the next inspection.
+
+Compile-time macros still execute during compilation, including their own
+messages and external effects. The output is the typed AST **after inference and
+before optimization**: optimization-pass macros are not run. Inference may
+already fold constants. Native compiler printing can include lowered constructs,
+qualifiers and hidden ABI arguments; it is a diagnostic representation, not an
+exact source round trip or a step-by-step expansion trace. A synthetic
+`inspected_cell`/`<cell>` wrapper contains executable notebook statements. Its
+last expression becomes a return so a pure macro expansion can be inspected.
+AST output is limited to 10,000 expression nodes per function.
+
+The notebook syntax parser still limits accepted fragment syntax; generic
+functions need concrete call arguments to be instantiated. Macro definitions
+belong in separate `.das` modules as before. Rebuild the native adapter and
+restart the kernel after upgrading. See [DasMacro.ipynb](DasMacro.ipynb) for executed examples.

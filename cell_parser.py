@@ -151,7 +151,7 @@ class CellParser:
                 self.ts_tree_delete(tree)
             self.ts_parser_delete(parser)
 
-    def split(self, text, display_last=False):
+    def split(self, text, display_last=False, persist_declarations=True, return_last=False):
         source = text.encode("utf-8")
         definitions = {}
         schemas = {}
@@ -206,7 +206,7 @@ class CellParser:
                 masked[start:end] = bytes(10 if b == 10 else 32 for b in source[start:end])
                 continue
             name = definition_key(node) if node.kind == "function_declaration" else node.get("name").text
-            if node.kind == "struct_declaration":
+            if node.kind == "struct_declaration" and persist_declarations:
                 if (node.get("parent") or node.fields.get("methods") or node.fields.get("aliases")
                         or any(n.kind == "annotation_list" for n in node.children)
                         or re.match(r"struct\s+(?:template|sealed)\b", node.text)):
@@ -222,7 +222,7 @@ class CellParser:
                     schema.append([names[0].text, re.sub(r"\s+", "", typ.text).replace(",", ";")])
                 schemas[name] = schema
             annotations = node.get("annotations")
-            if annotations and any(a.get("name") and a.get("name").text in ("init", "finalize")
+            if persist_declarations and annotations and any(a.get("name") and a.get("name").text in ("init", "finalize")
                                    for a in annotations.children):
                 raise CellSyntaxError("Lifecycle init/finalize annotations are not supported in notebook definitions")
             if name in definitions:
@@ -249,7 +249,7 @@ class CellParser:
         declarations = []
         replacements = []
         for node in body.children:
-            if node.kind != "let_expression":
+            if not persist_declarations or node.kind != "let_expression":
                 continue
             constant = bool(re.match(r"let\b", node.text))
             values = node.fields.get("variables", [])
@@ -288,20 +288,23 @@ class CellParser:
                             "make_struct", "make_variant", "array_comprehension", "cast_expression", "type_info",
                             "is_expression", "is_variant", "as_variant", "safe_as_variant", "interval"}
         expression = None
-        if last and display_last and (last.kind in expression_kinds or last.kind.startswith("constant_")):
+        if last and (display_last or return_last) and (last.kind in expression_kinds or last.kind.startswith("constant_")):
             start, end = last.start - shift, last.end - shift
             operator = last.get("operator")
             assignment = operator and operator.text in {"+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=",
                                                         "&&=", "||=", "^^=", "<<=", ">>=", "<<<=", ">>>="}
             suppressed = source[end:].lstrip().startswith(b";") or any(stop > end for begin, stop in spans)
-            if not assignment and not suppressed:
+            if not assignment and (return_last or not suppressed):
                 expression = last.text
                 row = source[:start].count(b"\n") + 1
                 expr_lines = [(line, row + index) for index, line in enumerate(expression.split("\n"))]
                 final_row = expr_lines[-1][1]
-                wrapper = [("static_if (typeinfo is_void(", row)] + expr_lines + [(")) {", final_row)] + expr_lines
-                wrapper += [("} else {", final_row), ("djnb_result = djnb_render(", row)] + expr_lines
-                wrapper += [(")", final_row), ("djnb_has_result = true", final_row), ("}", final_row)]
+                if return_last:
+                    wrapper = [("return (", row)] + expr_lines + [(")", final_row)]
+                else:
+                    wrapper = [("static_if (typeinfo is_void(", row)] + expr_lines + [(")) {", final_row)] + expr_lines
+                    wrapper += [("} else {", final_row), ("djnb_result = djnb_render(", row)] + expr_lines
+                    wrapper += [(")", final_row), ("djnb_has_result = true", final_row), ("}", final_row)]
                 replacements.append((start, end, "\n".join(line for line, _ in wrapper).encode(),
                                      [line for _, line in wrapper]))
         parts, line_numbers = [], [1]
