@@ -20,7 +20,7 @@ class DaslangKernel(Kernel):
     language_version = "master"
     language_info = {"name": "daslang", "mimetype": "text/x-dascript",
                      "file_extension": ".das"}
-    banner = "Stateful daslang: mixed cells, inferred types, Interrupt, %eval, %reset, %%writefile, %%strudel."
+    banner = "Stateful daslang: mixed cells, inferred types, Interrupt, %eval, %reset, %%writefile, %%strudel, %expand, %%ast, %time, %timeit, %%profile."
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

@@ -629,3 +629,78 @@ The notebook syntax parser still limits accepted fragment syntax; generic
 functions need concrete call arguments to be instantiated. Macro definitions
 belong in separate `.das` modules as before. Rebuild the native adapter and
 restart the kernel after upgrading. See [DasMacro.ipynb](examples/DasMacro.ipynb) for executed examples.
+
+
+## Timing and runtime profiling
+
+Restart the kernel after installing an updated wheel. Source checkouts must rebuild
+`native/build` first. These commands are available in both Notebook and JupyterLab:
+
+```das
+%time calc_primes(1000000, a)
+```
+
+```das
+%%time
+var data: array<int>
+calc_primes(100000, data)
+```
+
+`%time CODE` / `%%time` execute once with normal session semantics: successful
+variables and definitions persist, and runtime errors behave like ordinary cells.
+Reports separate compiler time, simulation/relocation, validation plus state
+serialization/restoration, module initialization, and cell execution. The total
+also includes parsing, source generation, context disposal and result extraction.
+Times are wall-clock times, not CPU times. The final worker checkpoint, IPC and
+browser rendering are excluded. Last-expression rendering inside the daslang
+wrapper is part of execution time; end a statement with `;` to suppress it.
+
+```das
+%timeit -r 5 -n 3 calc_primes(100000, a)
+```
+
+```das
+%%timeit -r 5 -n 3
+calc_primes(100000, a)
+```
+
+`%timeit` / `%%timeit` default to five repeats with one execution per repeat.
+Every execution, including those inside `-n`, receives an independent copy of the
+original checkpoint. The original context, values, declarations and imports stay
+unchanged, including on errors or interruption. There is no adaptive calibration
+or implicit warmup. The report summarizes the runtime mean, population standard
+deviation and best repeat mean, plus mean preparation phases per execution.
+Initial checkpoint restoration into each trial is timed separately and excluded
+from the runtime samples. Compilation occurs for every execution (SDK caches may
+warm), and allocation/GC behavior can vary between trials. At most 1000 executions
+are allowed. Repeated code still prints, writes files, sends network requests and
+can run module finalizers: external effects are not rolled back.
+
+```das
+%%profile --top 20 --trace "profile trace.json"
+calc_primes(100000, a)
+```
+
+`%%profile` executes once and commits state. It uses daslang's native debug-agent
+function instrumentation and allocation callbacks (the runtime hooks also used
+by `daslib/profiler`), scoped to the current cell's execution. It does not start
+a separate profiler script or instrument compilation/restoration. The summary
+lists call counts, inclusive and self wall times, inclusive requested allocation
+bytes and self requested allocation bytes, ordered by self time. Native/inline
+operations are attributed to their instrumented caller; notebook helper functions
+can appear. Allocation events cover daslang heap/string requests, including full
+reallocation sizes and string payload sizes. They do not measure all native C++
+allocations, live memory, peak memory, leaks or allocator overhead.
+
+`--top N` defaults to 20. Optional `--trace PATH` writes Chrome/Perfetto trace JSON,
+which can be opened in Perfetto or `chrome://tracing`. Trace output keeps at most
+100000 completed calls and reports truncation; aggregate function totals continue
+to accumulate. Paths are relative to the notebook working directory and quoted
+Windows paths are supported. The destination parent must exist; an existing file
+is replaced. Trace writing happens after execution, so an export failure does not
+roll back the already executed cell. Instrumentation adds overhead: compare
+performance with `%timeit` when profiling is disabled. The agent is detached on
+normal completion and runtime errors. Runtime errors produce the ordinary error
+reply rather than a profile report.
+
+See [the timing and profiling notebook](examples/profiling-demo.ipynb).

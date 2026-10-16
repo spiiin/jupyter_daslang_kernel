@@ -13,6 +13,7 @@ import re
 import base64
 import hashlib
 import json
+import time
 if __package__:
     from .cell_parser import CellParser, CellSyntaxError, definition_name, definition_key
     from .diagnostics import map_diagnostics, runtime_error
@@ -113,6 +114,8 @@ class Runtime:
             function = getattr(self.bridge, name)
             function.restype, function.argtypes = result, args
         for name, result, args in (
+                ("nb_profile_start", None, [C.c_void_p]),
+                ("nb_profile_stop", C.c_char_p, [C.c_void_p]),
                 ("nb_inspection_policy", None, [C.c_void_p]),
                 ("nb_inspect_program", C.c_char_p, [C.c_void_p, C.c_char_p, C.c_int])):
             function = getattr(self.bridge, name, None)
@@ -142,6 +145,8 @@ class Program:
         self.writer = self.r.text_make_writer()
         self.program = self.context = None
         self.module_info = {"modules": [], "variables": []}
+        self.timings = {}
+        compile_start = time.perf_counter_ns()
         try:
             self.r.fileaccess_introduce_file(self.access, b"notebook.das", source.encode(), 1)
             policy = self.r.policies_make()
@@ -157,14 +162,17 @@ class Program:
             self.check_errors()
             if self.sources.error:
                 raise CompileError("Module source preprocessing failed: " + self.sources.error)
+            self.timings["compile_ns"] = time.perf_counter_ns() - compile_start
             if not simulate:
                 return
+            simulate_start = time.perf_counter_ns()
             self.context = self.r.context_make(max(self.r.program_context_stack_size(self.program),
                 self.r.bridge.nb_init_stack_size(self.program)))
             self.r.bridge.nb_prepare_program(self.program, self.context)
             if not self.r.program_simulate(self.program, self.context, self.writer):
                 self.check_errors()
                 raise CompileError("Simulation failed")
+            self.timings["simulate_ns"] = time.perf_counter_ns() - simulate_start
             self.module_info = json.loads(self.r.bridge.nb_module_metadata(self.context))
             error = self.r.bridge.nb_module_value_error(self.context)
             if error:
@@ -456,6 +464,8 @@ return "{value}"
 
     def _run(self, variables, definitions, code, inferred=(), schemas=None, expected_hashes=None, constants=None, requires=None, require_origins=None,
              restored_values=None, restored_module_values=None, initialized_modules=None, **mapping):
+        if not hasattr(self, "last_timings"):
+            self.last_timings = {}
         constants = self.constants if constants is None else constants
         requires = self.requires if requires is None else requires
         require_origins = self.require_origins if require_origins is None else require_origins
@@ -474,6 +484,8 @@ return "{value}"
             fresh |= any(not key.split("|", 1)[-1].lower().startswith(sdk)
                          for key in self.current.module_info["modules"])
         candidate = Program(self.runtime, self.last_source, self.last_line_map, fresh_modules=fresh)
+        self.last_timings.update(candidate.timings)
+        restore_start = time.perf_counter_ns()
         modules = set(self.initialized_modules if initialized_modules is None else initialized_modules)
         module_values = {key: dict(value) for key, value in (
             self.module_values if restored_module_values is None else restored_module_values).items()}
@@ -509,7 +521,10 @@ return "{value}"
                 key = candidate.module_key(variable)
                 if key in module_values:
                     candidate.load_module(variable, base64.b64decode(module_values[key]["data"], validate=True))
+            self.last_timings["restore_ns"] = time.perf_counter_ns() - restore_start
+            initialize_start = time.perf_counter_ns()
             candidate.initialize(modules)
+            self.last_timings["initialize_ns"] = time.perf_counter_ns() - initialize_start
         except BaseException:
             candidate.close()
             raise
@@ -526,7 +541,16 @@ return "{value}"
             self.definition_origins = mapping["definition_origins"]
         if old:
             old.close()
-        candidate.call("djnb_cell")
+        profiling = getattr(self, "profile_requested", False)
+        if profiling:
+            self.runtime.bridge.nb_profile_start(candidate.context)
+        execute_start = time.perf_counter_ns()
+        try:
+            candidate.call("djnb_cell")
+        finally:
+            self.last_timings["execute_ns"] = time.perf_counter_ns() - execute_start
+            if profiling:
+                self.last_profile = json.loads(self.runtime.bridge.nb_profile_stop(candidate.context))
         error = C.c_char_p.from_address(candidate.variable("djnb_error")).value
         if C.c_bool.from_address(candidate.variable("djnb_failed")).value:
             raise ExecutionError(candidate.runtime_error(error.decode(errors="replace") if error else "daslang runtime exception"))
@@ -556,6 +580,15 @@ return "{value}"
         dependencies(typ, schemas or {})
 
     def execute(self, code, cell_label=None):
+        self.last_timings = {}
+        self.last_profile = None
+        started = time.perf_counter_ns()
+        try:
+            return self._execute(code, cell_label)
+        finally:
+            self.last_timings["total_ns"] = time.perf_counter_ns() - started
+
+    def _execute(self, code, cell_label=None):
         self.cell_counter += 1
         origin = {"label": cell_label or f"Cell {self.cell_counter}", "code": code}
         try:

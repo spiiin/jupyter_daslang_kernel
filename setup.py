@@ -5,7 +5,7 @@ from wheel.bdist_wheel import bdist_wheel
 from pathlib import Path
 
 MODULES = {"__init__", "__main__", "cli", "paths", "kernel", "session",
-           "inspection_magic", "worker", "worker_client", "module_sources", "file_magics", "strudel_magic", "cell_parser", "editor_services",
+           "timing_magic", "inspection_magic", "worker", "worker_client", "module_sources", "file_magics", "strudel_magic", "cell_parser", "editor_services",
            "persistent_types", "diagnostics", "native_output", "console"}
 
 

@@ -2,6 +2,13 @@
 
 ## 0.11.0a1 — unreleased
 
+- `%time` / `%%time` report separate compilation, context setup, state restoration,
+  module initialization and execution wall times. `%timeit` / `%%timeit` benchmark
+  independent checkpoint copies without changing the original session.
+- `%%profile` uses native daslang function and allocation instrumentation, shows
+  call counts and inclusive/self time and byte statistics, and optionally exports
+  Chrome/Perfetto traces. Added editor help, tests and a profiling notebook.
+
 - `%expand`, `%%expand` and `%%ast` inspect compiler output after macro expansion
   and type inference, without running the fragment or changing session state.
   Includes overloads, generated structure fields, mapped diagnostics and notebook examples.

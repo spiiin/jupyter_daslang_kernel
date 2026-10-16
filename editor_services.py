@@ -4,12 +4,14 @@ if __package__:
     from .cell_parser import CellParser, CellSyntaxError, definition_key, definition_name
     from .persistent_types import SCALARS, parse_type
     from .file_magics import parse_writefile, WRITEFILE_HELP
+    from .timing_magic import HELP as TIMING_HELP, parse_timing
     from .inspection_magic import HELP as INSPECTION_HELP, parse_inspection
     from .strudel_magic import parse_strudel, STRUDEL_HELP
 else:
     from cell_parser import CellParser, CellSyntaxError, definition_key, definition_name
     from persistent_types import SCALARS, parse_type
     from file_magics import parse_writefile, WRITEFILE_HELP
+    from timing_magic import HELP as TIMING_HELP, parse_timing
     from inspection_magic import HELP as INSPECTION_HELP, parse_inspection
     from strudel_magic import parse_strudel, STRUDEL_HELP
 
@@ -28,6 +30,7 @@ BUILTINS = {
 }
 MAGICS = {"%%strudel": STRUDEL_HELP, "%%writefile": WRITEFILE_HELP, "%eval": "Evaluate an expression explicitly.", "%reset": "Discard all variables and definitions."}
 MAGICS.update(INSPECTION_HELP)
+MAGICS.update(TIMING_HELP)
 PREFIX = "[export]\ndef djnb_editor() {\n"
 
 
@@ -179,8 +182,8 @@ class EditorServices:
             return reply
         if cursor <= len(code.partition("\n")[0]):
             command = code.partition("\n")[0].strip().split(None, 1)
-            if command and command[0] in INSPECTION_HELP:
-                reply.update(found=True, data={"text/plain": INSPECTION_HELP[command[0]]})
+            if command and command[0] in (INSPECTION_HELP | TIMING_HELP):
+                reply.update(found=True, data={"text/plain": (INSPECTION_HELP | TIMING_HELP)[command[0]]})
                 return reply
         if lexical_state(code[:cursor])[0] != "code": return reply
         tokens = list(re.finditer(r"[A-Za-z_]\w*(?:(?:\.[A-Za-z_]\w*)|(?:\[[^\]\n]*\]))*", code))
@@ -233,6 +236,15 @@ class EditorServices:
         return reply
 
     def is_complete(self, code):
+        first = code.partition("\n")[0].strip()
+        if first in TIMING_HELP and not code.partition("\n")[2].strip():
+            return {"status": "incomplete", "indent": ""}
+        try:
+            timing = parse_timing(code)
+        except ValueError:
+            return {"status": "invalid"}
+        if timing is not None:
+            return self.is_complete(timing[2])
         header = code.partition("\n")[0].strip()
         if header in ("%expand", "%%ast", "%%expand") and not code.partition("\n")[2].strip():
             return {"status": "incomplete", "indent": ""}
