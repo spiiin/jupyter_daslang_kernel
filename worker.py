@@ -7,10 +7,12 @@ import ctypes as C
 if __package__:
     from .native_output import capture_native_output, stream_native_output
     from .session import Runtime, NotebookSession
+    from .timing_magic import parse_timing, execute_timing
     from .inspection_magic import parse_inspection
 else:
     from native_output import capture_native_output, stream_native_output
     from session import Runtime, NotebookSession
+    from timing_magic import parse_timing, execute_timing
     from inspection_magic import parse_inspection
 
 
@@ -71,8 +73,11 @@ def main():
                         session.close()
                     elif request["op"] == "execute":
                         code = request["code"].strip()
+                        timing = parse_timing(request["code"])
                         inspection = parse_inspection(request["code"])
-                        if inspection is not None:
+                        if timing is not None:
+                            reply["result"], reply["measurement"] = execute_timing(session, timing, request.get("cell_label"))
+                        elif inspection is not None:
                             reply["result"] = session.inspect_compilation(*inspection, cell_label=request.get("cell_label"))
                         elif code == "%reset":
                             session.close()

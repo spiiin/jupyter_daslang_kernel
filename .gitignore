@@ -22,3 +22,5 @@ labextension/*.json.log
 .runtime-source/
 .release-test/
 release/
+
+examples/profiling-demo-trace.json
