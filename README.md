@@ -40,11 +40,11 @@ python -m pip install build setuptools wheel
 python build_package.py --sdk C:\src\daScript
 python -m pip install "dist/daslang_jupyter-0.11.0a1-py3-none-win_amd64.whl[lab]"
 python -m daslang_jupyter install --sdk C:\src\daScript
-python -m jupyterlab demo.ipynb
+python -m jupyterlab examples/demo.ipynb
 ```
 
 Select **daslang (stateful prototype)** as the notebook kernel, then run cells
-with Shift+Enter. `demo.ipynb` demonstrates persistent variables, arrays,
+with Shift+Enter. `examples/demo.ipynb` demonstrates persistent variables, arrays,
 mixed cells, inferred types, function redefinition, errors and recovery. `%eval expression` displays a
 value; `%reset` discards state. `print()` output is sent to the notebook.
 The runtime runs in a separate worker process. **Kernel -> Interrupt Kernel**
@@ -71,7 +71,7 @@ python -m unittest -v test_kernel
 
 ## Try Interrupt
 
-Open `interrupt-demo.ipynb`. Run the first cell, then the infinite loop in the
+Open `examples/interrupt-demo.ipynb`. Run the first cell, then the infinite loop in the
 second cell. Click the stop button or **Kernel -> Interrupt Kernel**, then run
 the third cell: `x` should still equal `7`.
 
@@ -250,7 +250,7 @@ used by a variable (including nested dependencies) is rejected before compilatio
 Use `%reset` and redefine it to discard old values. Unused schemas may change.
 Runtime type hashes additionally guard Archive restoration before any bytes load.
 Checkpoints own their schema metadata and survive closing the original session.
-`structs-demo.ipynb` demonstrates these cases.
+`examples/structs-demo.ipynb` demonstrates these cases.
 
 ## Editor support
 
@@ -277,7 +277,7 @@ See the official [completer documentation](https://jupyterlab.readthedocs.io/en/
 and [code console documentation](https://jupyterlab.readthedocs.io/en/latest/user/code_console.html).
 Notebook cells still execute with Shift+Enter; whether incomplete code continues
 input automatically depends on the frontend (notably consoles).
-`editor-demo.ipynb` contains a setup cell and manual completion/inspection probes.
+`examples/editor-demo.ipynb` contains a setup cell and manual completion/inspection probes.
 
 ## Next steps
 
@@ -344,7 +344,7 @@ Install its wheel into the environment running the **JupyterLab server**:
 
 ```powershell
 python -m pip install C:\src\daslang-jupyter\labextension\dist\jupyterlab_daslang-0.1.0-py3-none-any.whl
-python -m jupyterlab C:\src\daslang-jupyter\highlighting-demo.ipynb
+python -m jupyterlab C:\src\daslang-jupyter\examples\highlighting-demo.ipynb
 ```
 
 Restart an already running server and reload the browser page after installation.
@@ -404,7 +404,7 @@ state uses RTTI and a native value codec alongside notebook Archive checkpoints.
 schema registry. Availability of native modules depends on the selected runtime
 build. Macro/compile-time processing remains part of daslang compilation.
 
-`language-features-demo.ipynb` demonstrates let initialization once, native
+`examples/language-features-demo.ipynb` demonstrates let initialization once, native
 readonly errors, require aliases, overload dispatch and individual redefinition.
 After upgrading the Python package, restart the notebook kernel to load the new version.
 Rebuild the native adapter as well when running directly from source.
@@ -453,7 +453,7 @@ getter, preserving runtime reads after restoration. This happens in memory with
 original line numbers; source files on disk are unchanged. Inference and copying
 still use the compiler's normal rules.
 
-`module-state-demo.ipynb` and `examples/notebook_counter.das` demonstrate a private
+`examples/module-state-demo.ipynb` and `examples/notebook_counter.das` demonstrate a private
 counter, arrays/tables, init once and finalize on reset.
 
 ### Relation to daslang-live
@@ -532,7 +532,7 @@ call and other macros supported by the selected compiler can live in `.das`
 modules. Their emitted notebook code still has to fit the kernel's supported
 persistent-value and Tree-sitter syntax subset; imported macro names are not yet
 included in semantic completion. Direct macro-class definitions inside ordinary
-notebook cells are not supported. `macro-cells-demo.ipynb` and
+notebook cells are not supported. `examples/macro-cells-demo.ipynb` and
 `examples/notebook_macros.das` contain the tested call-macro example.
 
 
@@ -588,7 +588,7 @@ also close the player. Unrelated daslang processes are not affected.
 The SDK needs runtime compilation (`rtti`/`debugapi`), daStrudel and dasLiveHost.
 Notebook wrappers use `curl` and `daslib/fio.run_and_capture`; audio is never run
 in the notebook's checkpointed worker. Restart the kernel after upgrading, then
-reload `Dastrudel.ipynb` from disk to see the shared-player example.
+reload `examples/Dastrudel.ipynb` from disk to see the shared-player example.
 
 
 ## Macro expansion and AST inspection
@@ -628,4 +628,4 @@ AST output is limited to 10,000 expression nodes per function.
 The notebook syntax parser still limits accepted fragment syntax; generic
 functions need concrete call arguments to be instantiated. Macro definitions
 belong in separate `.das` modules as before. Rebuild the native adapter and
-restart the kernel after upgrading. See [DasMacro.ipynb](DasMacro.ipynb) for executed examples.
+restart the kernel after upgrading. See [DasMacro.ipynb](examples/DasMacro.ipynb) for executed examples.
