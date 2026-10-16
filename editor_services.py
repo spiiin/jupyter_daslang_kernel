@@ -4,11 +4,13 @@ if __package__:
     from .cell_parser import CellParser, CellSyntaxError, definition_key, definition_name
     from .persistent_types import SCALARS, parse_type
     from .file_magics import parse_writefile, WRITEFILE_HELP
+    from .inspection_magic import HELP as INSPECTION_HELP, parse_inspection
     from .strudel_magic import parse_strudel, STRUDEL_HELP
 else:
     from cell_parser import CellParser, CellSyntaxError, definition_key, definition_name
     from persistent_types import SCALARS, parse_type
     from file_magics import parse_writefile, WRITEFILE_HELP
+    from inspection_magic import HELP as INSPECTION_HELP, parse_inspection
     from strudel_magic import parse_strudel, STRUDEL_HELP
 
 
@@ -25,6 +27,7 @@ BUILTINS = {
     "panic": "panic(message)\nRaises a recoverable daslang exception.",
 }
 MAGICS = {"%%strudel": STRUDEL_HELP, "%%writefile": WRITEFILE_HELP, "%eval": "Evaluate an expression explicitly.", "%reset": "Discard all variables and definitions."}
+MAGICS.update(INSPECTION_HELP)
 PREFIX = "[export]\ndef djnb_editor() {\n"
 
 
@@ -174,6 +177,11 @@ class EditorServices:
         if cursor <= len(code.partition("\n")[0]) and re.match(r"^\s*%%writefile\b", code):
             reply.update(found=True, data={"text/plain": WRITEFILE_HELP})
             return reply
+        if cursor <= len(code.partition("\n")[0]):
+            command = code.partition("\n")[0].strip().split(None, 1)
+            if command and command[0] in INSPECTION_HELP:
+                reply.update(found=True, data={"text/plain": INSPECTION_HELP[command[0]]})
+                return reply
         if lexical_state(code[:cursor])[0] != "code": return reply
         tokens = list(re.finditer(r"[A-Za-z_]\w*(?:(?:\.[A-Za-z_]\w*)|(?:\[[^\]\n]*\]))*", code))
         token = next((m[0] for m in tokens if m.start() <= cursor <= m.end()), None)
@@ -225,6 +233,17 @@ class EditorServices:
         return reply
 
     def is_complete(self, code):
+        header = code.partition("\n")[0].strip()
+        if header in ("%expand", "%%ast", "%%expand") and not code.partition("\n")[2].strip():
+            return {"status": "incomplete", "indent": ""}
+        try:
+            inspection = parse_inspection(code)
+        except ValueError:
+            return {"status": "invalid"}
+        if inspection is not None:
+            _, body = inspection
+            # Check the fragment's delimiters, not the magic header.
+            return self.is_complete(body)
         try:
             request = parse_strudel(code)
             if request is not None:

@@ -7,9 +7,11 @@ import ctypes as C
 if __package__:
     from .native_output import capture_native_output, stream_native_output
     from .session import Runtime, NotebookSession
+    from .inspection_magic import parse_inspection
 else:
     from native_output import capture_native_output, stream_native_output
     from session import Runtime, NotebookSession
+    from inspection_magic import parse_inspection
 
 
 protocol = None
@@ -69,7 +71,10 @@ def main():
                         session.close()
                     elif request["op"] == "execute":
                         code = request["code"].strip()
-                        if code == "%reset":
+                        inspection = parse_inspection(request["code"])
+                        if inspection is not None:
+                            reply["result"] = session.inspect_compilation(*inspection, cell_label=request.get("cell_label"))
+                        elif code == "%reset":
                             session.close()
                         elif code.startswith("%eval "):
                             reply["result"] = session.evaluate(code[6:], cell_label=request.get("cell_label"))

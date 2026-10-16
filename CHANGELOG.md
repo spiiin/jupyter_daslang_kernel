@@ -2,6 +2,10 @@
 
 ## 0.11.0a1 — unreleased
 
+- `%expand`, `%%expand` and `%%ast` inspect compiler output after macro expansion
+  and type inference, without running the fragment or changing session state.
+  Includes overloads, generated structure fields, mapped diagnostics and notebook examples.
+
 - `%%writefile [-a] PATH` saves a UTF-8 file directly from a notebook cell,
   without compiling the body or changing session state. Quoted paths, parent
   directories, atomic replacement and append mode are supported.

@@ -112,6 +112,12 @@ class Runtime:
                 ("nb_run_module_shutdown", C.c_int, [C.c_void_p])):
             function = getattr(self.bridge, name)
             function.restype, function.argtypes = result, args
+        for name, result, args in (
+                ("nb_inspection_policy", None, [C.c_void_p]),
+                ("nb_inspect_program", C.c_char_p, [C.c_void_p, C.c_char_p, C.c_int])):
+            function = getattr(self.bridge, name, None)
+            if function is not None:
+                function.restype, function.argtypes = result, args
         self.context_make = self.bridge.nb_context_make
         actual_hash = hashlib.sha256((binary_dir / "libDaScriptDyn_runtime.dll").read_bytes()).hexdigest()
         if actual_hash != self.bridge.nb_runtime_hash().decode():
@@ -127,7 +133,7 @@ class Runtime:
 
 
 class Program:
-    def __init__(self, runtime, source, line_map=None, simulate=True, fresh_modules=False):
+    def __init__(self, runtime, source, line_map=None, simulate=True, fresh_modules=False, inspection=False):
         self.r = runtime
         self.line_map = line_map or {}
         self.sources = ModuleSources(self.r.sdk)
@@ -141,6 +147,8 @@ class Program:
             policy = self.r.policies_make()
             try:
                 self.r.bridge.nb_compile_policy(policy, int(fresh_modules))
+                if inspection:
+                    self.r.bridge.nb_inspection_policy(policy)
                 self.program = self.r.program_compile_policies(b"notebook.das", self.access, self.writer, self.group, policy)
             finally:
                 self.r.policies_release(policy)
@@ -301,6 +309,100 @@ class NotebookSession:
         self.require_origins = {}
         self.module_values = {}
         self.initialized_modules = set()
+
+    def inspect_compilation(self, mode, code, cell_label=None):
+        """Compile an isolated fragment against session types, without simulating it."""
+        if not hasattr(self.runtime.bridge, "nb_inspect_program"):
+            raise RuntimeError("Rebuild the native adapter to enable %expand and %%ast")
+        named = (mode == "expression" and re.fullmatch(r"[A-Za-z_]\w*", code)
+                 and code not in self.variables
+                 and any(definition_name(key) == code for key in self.definitions))
+        cell = self.parser.split("" if named or mode == "expression" else code,
+                                 persist_declarations=False, return_last=True)
+        definitions = {**self.definitions, **cell.definitions}
+        selection = ({code} if named else {"djnb_inspection"})
+        selection.update(definition_name(key) for key in cell.definitions)
+        if not named:
+            selection.add("*")
+            selection.update("-" + definition_name(key) for key in self.definitions
+                             if key not in cell.definitions)
+        requires = {**self.requires, **cell.requires}
+        lines, mapping = [], {}
+        label = cell_label or "inspection"
+
+        def append(text, origin=None, first=1):
+            for offset, line in enumerate(text.split("\n")):
+                lines.append(line)
+                if origin:
+                    old_lines = origin["code"].split("\n")
+                    row = first + offset
+                    excerpt = old_lines[row - 1] if 0 < row <= len(old_lines) else line
+                    mapping[len(lines)] = (origin["label"], row, excerpt)
+
+        append("options gen2\noptions rtti\noptions persistent_heap\noptions gc\noptions disable_auto_inline\noptions disable_inline\noptions no_fast_call")
+        for key, requirement in requires.items():
+            where = self.require_origins.get(key) if key not in cell.requires else None
+            if key in cell.requires:
+                where = {"code": "\n" + code, "label": label, "line": cell.require_lines[key] + 1}
+            append(requirement.strip().rstrip(";") + ";", where, where["line"] if where else 1)
+        for key, definition in definitions.items():
+            where = self.definition_origins.get(key) if key not in cell.definitions else None
+            if key in cell.definitions:
+                where = {"code": "\n" + code, "label": label, "line": cell.definition_lines[key] + 1}
+            # Keep an explicitly requested, otherwise unused function in the output.
+            if named and definition_name(key) == code and re.search(r"\bdef\s", definition):
+                if not re.search(r"\[[^\]]*\bexport\b", definition):
+                    append("[export]")
+            append(definition, where, where["line"] if where else 1)
+        for name, typ in self.variables.items():
+            append(f"{'let' if name in self.constants else 'var'} {name} : {typ}")
+        append("[export]\ndef djnb_inspection() : auto {")
+        if mode == "expression" and not named:
+            append("return (" + code + ")", {"code": code, "label": label})
+        elif not named:
+            # The parser leaves local declarations intact in inspection mode.
+            start = len(lines)
+            append(cell.statements)
+            original_lines = code.split("\n")
+            for offset, _ in enumerate(cell.statements.split("\n")):
+                row = cell.statement_lines[offset]
+                excerpt = original_lines[row - 1] if 0 < row <= len(original_lines) else ""
+                mapping[start + offset + 1] = (label, row + 1, excerpt)
+        append("}")
+        program = Program(self.runtime, "\n".join(lines), mapping, simulate=False,
+                          fresh_modules=True, inspection=True)
+        try:
+            raw = self.runtime.bridge.nb_inspect_program(
+                program.program, "\n".join(sorted(selection)).encode(), int(mode == "ast"))
+            data = json.loads(raw)
+        finally:
+            program.close()
+        output = ["// After type inference and macro expansion; optimizer disabled."]
+        for item in data["functions"]:
+            name = "<cell>" if item["name"] == "djnb_inspection" else item["name"]
+            if mode == "ast":
+                output.append("Function " + name)
+                for node in item.get("nodes", []):
+                    details = (" : " + node["type"]) if node["type"] else ""
+                    if "value" in node:
+                        details += "  " + node["value"].replace("\n", " ")
+                    output.append("  " * min(node["depth"] + 1, 80) + node["kind"] + details)
+                if item.get("truncated"):
+                    output.append("  ... truncated after 10000 nodes")
+            else:
+                output.append(item["source"].replace("djnb_inspection", "inspected_cell"))
+        for item in data.get("structures", []):
+            if mode == "ast":
+                output.append("Structure " + item["name"])
+                output.extend("  Field " + field["name"] + " : " + field["type"] +
+                              (" = " + field["initializer"] if "initializer" in field else "")
+                              for field in item["fields"])
+            else:
+                output.append("struct " + item["name"] + " {\n" + "\n".join(
+                    "    " + field["name"] + " : " + field["type"] +
+                    (" = " + field["initializer"] if "initializer" in field else "")
+                    for field in item["fields"]) + "\n}")
+        return "\n\n".join(output) if mode != "ast" else "\n".join(output)
 
     @staticmethod
     def validate_name(name):
