@@ -57,7 +57,6 @@ def main():
     run("-m", "jupyter", "labextension", "list")
     shutil.copy2(root / "tests/verify_server.py", work)
     run("verify_server.py")
-    shutil.copy2(root / "module-state-demo.ipynb", work)
     shutil.copytree(root / "examples", work / "examples")
     shutil.copy2(root / "tests/execute_release_notebook.py", work)
     run("execute_release_notebook.py")
