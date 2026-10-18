@@ -15,24 +15,34 @@ else:
 
 class DaslangKernel(Kernel):
     implementation = "daslang-jupyter"
-    implementation_version = "0.11.0a1"
+    implementation_version = "0.12.0a1"
     language = "daslang"
     language_version = "master"
     language_info = {"name": "daslang", "mimetype": "text/x-dascript",
                      "file_extension": ".das"}
-    banner = "Stateful daslang: mixed cells, inferred types, Interrupt, %eval, %reset, %%writefile, %%strudel, %expand, %%ast, %time, %timeit, %%profile."
+    banner = "Stateful daslang: mixed cells, inferred types, Interrupt, %eval, %reset, %%writefile, %%strudel, %expand, %%ast, %time, %timeit, %%profile, display(), %export, %pkg, %%test, %%coverage, %%check, %%debug, %vars, %view."
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.worker_client = WorkerClient()
         self.strudel = StrudelMagic()
+        self.lsp_enabled = False
         self.editor = EditorServices(lambda: self.worker_client.state)
 
     def do_complete(self, code, cursor_pos):
         return self.editor.complete(code, cursor_pos)
 
     def do_inspect(self, code, cursor_pos, detail_level=0, omit_sections=()):
-        return self.editor.inspect(code, cursor_pos, detail_level)
+        fallback = self.editor.inspect(code, cursor_pos, detail_level)
+        if self.lsp_enabled and self.worker_client.active is None and not code.lstrip().startswith('%'):
+            try:
+                response=self.worker_client.execute(f"%%lsp hover {cursor_pos}\n{code}")
+                language=(response.get("tool_metadata") or {}).get("language",{})
+                if language.get("ok") and language.get("contents"):
+                    return {"status":"ok","found":True,"data":{"text/markdown":language["contents"],"text/plain":language["contents"]},"metadata":{}}
+            except Exception:
+                pass  # Keep local metadata help if the optional SDK LSP tools fail.
+        return fallback
 
     def do_is_complete(self, code):
         return self.editor.is_complete(code)
@@ -64,7 +74,12 @@ class DaslangKernel(Kernel):
         except Exception as error:
             reply = {"status": "error", "output": {}, "error": {
                 "ename": type(error).__name__, "evalue": str(error), "traceback": str(error).splitlines()}}
+        metadata=reply.get("tool_metadata") or {}
+        if "lsp_enabled" in metadata:
+            self.lsp_enabled=metadata["lsp_enabled"]
         if not silent:
+            for display in reply.get("display_data",[]):
+                self.send_response(self.iopub_socket,"display_data",display)
             for stream, value in reply.get("output", {}).items():
                 if value:
                     self.send_response(self.iopub_socket, "stream", {"name": stream, "text": value})

@@ -24,3 +24,11 @@ labextension/*.json.log
 release/
 
 examples/profiling-demo-trace.json
+
+.djnb-*.das
+modules/
+
+.cache/
+examples/tools-demo.lcov
+examples/tools-demo.source.das
+examples/tools-export.das

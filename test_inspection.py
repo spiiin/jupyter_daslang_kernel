@@ -89,7 +89,7 @@ class InspectionTests(unittest.TestCase):
 
     def test_worker_magics_and_readonly_editor_services(self):
         editor = EditorServices(lambda: {})
-        self.assertEqual(editor.complete("%exp", 4)["matches"], ["%expand"])
+        self.assertEqual(editor.complete("%exp", 4)["matches"], ["%expand", "%export"])
         self.assertEqual(editor.complete("%%a", 3)["matches"], ["%%ast"])
         self.assertTrue(editor.inspect("%expand bump()", 4)["found"])
         self.assertEqual(editor.is_complete("%%ast\nvar value=1"), {"status": "complete"})

@@ -4,6 +4,7 @@ if __package__:
     from .cell_parser import CellParser, CellSyntaxError, definition_key, definition_name
     from .persistent_types import SCALARS, parse_type
     from .file_magics import parse_writefile, WRITEFILE_HELP
+    from .tools_magic import HELP as TOOLS_HELP, parse_tools
     from .timing_magic import HELP as TIMING_HELP, parse_timing
     from .inspection_magic import HELP as INSPECTION_HELP, parse_inspection
     from .strudel_magic import parse_strudel, STRUDEL_HELP
@@ -11,6 +12,7 @@ else:
     from cell_parser import CellParser, CellSyntaxError, definition_key, definition_name
     from persistent_types import SCALARS, parse_type
     from file_magics import parse_writefile, WRITEFILE_HELP
+    from tools_magic import HELP as TOOLS_HELP, parse_tools
     from timing_magic import HELP as TIMING_HELP, parse_timing
     from inspection_magic import HELP as INSPECTION_HELP, parse_inspection
     from strudel_magic import parse_strudel, STRUDEL_HELP
@@ -18,6 +20,11 @@ else:
 
 KEYWORDS = set("var let def struct if elif else for while return yield break continue pass true false null unsafe const typeinfo typedecl array table".split()) | SCALARS
 BUILTINS = {
+    "display": "display(value)\nDisplay a JSON-compatible value as a bounded HTML table and plain text.",
+    "display_html": "display_html(text:string)\nPublish explicit HTML output.",
+    "display_markdown": "display_markdown(text:string)\nPublish Markdown output.",
+    "display_image": "display_image(path:string)\nDisplay a PNG, JPEG or SVG file (up to 8 MiB).",
+    "display_audio": "display_audio(path:string)\nDisplay a WAV audio player (up to 8 MiB).",
     "print": "print(text)\nWrites text to notebook stdout.",
     "length": "length(value)\nLength of an array, table or string.",
     "clear": "array |> clear()\nRemoves its elements.",
@@ -31,6 +38,7 @@ BUILTINS = {
 MAGICS = {"%%strudel": STRUDEL_HELP, "%%writefile": WRITEFILE_HELP, "%eval": "Evaluate an expression explicitly.", "%reset": "Discard all variables and definitions."}
 MAGICS.update(INSPECTION_HELP)
 MAGICS.update(TIMING_HELP)
+MAGICS.update(TOOLS_HELP)
 PREFIX = "[export]\ndef djnb_editor() {\n"
 
 
@@ -182,8 +190,8 @@ class EditorServices:
             return reply
         if cursor <= len(code.partition("\n")[0]):
             command = code.partition("\n")[0].strip().split(None, 1)
-            if command and command[0] in (INSPECTION_HELP | TIMING_HELP):
-                reply.update(found=True, data={"text/plain": (INSPECTION_HELP | TIMING_HELP)[command[0]]})
+            if command and command[0] in (INSPECTION_HELP | TIMING_HELP | TOOLS_HELP):
+                reply.update(found=True, data={"text/plain": (INSPECTION_HELP | TIMING_HELP | TOOLS_HELP)[command[0]]})
                 return reply
         if lexical_state(code[:cursor])[0] != "code": return reply
         tokens = list(re.finditer(r"[A-Za-z_]\w*(?:(?:\.[A-Za-z_]\w*)|(?:\[[^\]\n]*\]))*", code))
@@ -236,6 +244,18 @@ class EditorServices:
         return reply
 
     def is_complete(self, code):
+        header=code.partition("\n")[0].strip()
+        if header.split(None,1) and header.split(None,1)[0] in TOOLS_HELP:
+            if header.startswith('%%'):
+                if not code.partition("\n")[2].strip():return {"status":"incomplete","indent":""}
+                try:
+                    request=parse_tools(code)
+                    return self.is_complete(request[2])
+                except ValueError:return {"status":"invalid"}
+            try:
+                parse_tools(code)
+                return {"status":"complete"}
+            except ValueError:return {"status":"invalid"}
         first = code.partition("\n")[0].strip()
         if first in TIMING_HELP and not code.partition("\n")[2].strip():
             return {"status": "incomplete", "indent": ""}
