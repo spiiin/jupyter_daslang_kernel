@@ -7,11 +7,13 @@ import ctypes as C
 if __package__:
     from .native_output import capture_native_output, stream_native_output
     from .session import Runtime, NotebookSession
+    from .tools_magic import parse_tools, run_tools
     from .timing_magic import parse_timing, execute_timing
     from .inspection_magic import parse_inspection
 else:
     from native_output import capture_native_output, stream_native_output
     from session import Runtime, NotebookSession
+    from tools_magic import parse_tools, run_tools
     from timing_magic import parse_timing, execute_timing
     from inspection_magic import parse_inspection
 
@@ -54,7 +56,7 @@ def main():
     global protocol
     protocol = os.fdopen(os.dup(1), "w", encoding="utf-8", buffering=1)
     threading.Thread(target=watch_parent, daemon=True).start()
-    runtime = session = None
+    runtime = session = debug = None
     try:
         for line in sys.stdin:
             request = json.loads(line)
@@ -67,19 +69,25 @@ def main():
                     if runtime is None:
                         runtime = Runtime(os.environ["DAS_SDK"])
                         session = NotebookSession(runtime)
+                    session.last_displays = []
                     if request["op"] == "restore":
                         session.restore(request["state"])
                     elif request["op"] == "shutdown":
                         session.close()
                     elif request["op"] == "execute":
                         code = request["code"].strip()
+                        tools = parse_tools(request["code"])
                         timing = parse_timing(request["code"])
                         inspection = parse_inspection(request["code"])
-                        if timing is not None:
+                        if tools is not None:
+                            reply["readonly"] = True
+                            reply["result"], reply["tool_metadata"], debug = run_tools(session, tools, debug)
+                        elif timing is not None:
                             reply["result"], reply["measurement"] = execute_timing(session, timing, request.get("cell_label"))
                         elif inspection is not None:
                             reply["result"] = session.inspect_compilation(*inspection, cell_label=request.get("cell_label"))
                         elif code == "%reset":
+                            if debug: debug.close(); debug = None
                             session.close()
                         elif code.startswith("%eval "):
                             reply["result"] = session.evaluate(code[6:], cell_label=request.get("cell_label"))
@@ -92,7 +100,9 @@ def main():
                                  "evalue": str(error), "traceback": str(error).splitlines()})
                 try:
                     if session is not None:
-                        reply["state"] = session.snapshot()
+                        if not reply.get("readonly"):
+                            reply["state"] = session.snapshot()
+                        reply["display_data"] = getattr(session,"last_displays",[]) + (reply.get("tool_metadata") or {}).get("display_data",[])
                 except Exception as error:
                     reply.update(status="checkpoint_error", error={"ename": "CheckpointError",
                                  "evalue": str(error), "traceback": str(error).splitlines()})
@@ -102,6 +112,8 @@ def main():
                 break
     finally:
         with capture_native_output():
+            if debug is not None:
+                debug.close()
             if session is not None:
                 session.close()
             if runtime is not None:

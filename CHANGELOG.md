@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.12.0a1 — unreleased
+
+- `%vars` and `%view` read bounded previews through native RTTI, with structure trees, arrays-of-struct tables and paginated ranges. Read-only tool replies preserve the parent checkpoint without resending it.
+
+- Explicit rich display for tables, HTML/Markdown, PNG/JPEG/SVG and WAV.
+- Standalone .das snapshot export, isolated assertion cells, SDK test runner and notebook-filtered LCOV coverage.
+- Project-local daspkg commands and dynamic module registration.
+- SDK LSP diagnostics, definition lookup and optional compiler-backed hover.
+- Isolated DAP debugger with breakpoints, stack/scopes, evaluation and stepping; original notebook state is preserved.
+- SDK pin updated to `4651e8f3f541b933dfac403874a348d777e733cf`; runtime bundle includes the CLI, SDK tools and daspkg XML dependency.
+
 ## 0.11.0a1 — unreleased
 
 - `%time` / `%%time` report separate compilation, context setup, state restoration,

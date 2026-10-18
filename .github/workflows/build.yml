@@ -28,7 +28,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: GaijinEntertainment/daScript
-          ref: f916e0092ef38032dd81e8a55a231c3c4b4a5533
+          ref: 4651e8f3f541b933dfac403874a348d777e733cf
           submodules: recursive
           path: .runtime-source
       - name: Build dependencies
@@ -38,9 +38,9 @@ jobs:
         run: |
           $sdk = Join-Path $env:GITHUB_WORKSPACE '.runtime-source'
           $compat = (Join-Path $env:GITHUB_WORKSPACE 'msvc-compat.cmake').Replace('\','/')
-          cmake -S $sdk -B "$sdk/build-jupyter" -G "Visual Studio 17 2022" -A x64 "-DDAS_MODULES_INCLUDE=" -DDAS_TOOLS_DISABLED=ON -DDAS_TESTS_DISABLED=ON -DDAS_TUTORIAL_DISABLED=ON -DDAS_AOT_EXAMPLES_DISABLED=ON -DDAS_FLEX_BISON_DISABLED=ON "-DCMAKE_PROJECT_INCLUDE=$compat"
+          cmake -S $sdk -B "$sdk/build-jupyter" -G "Visual Studio 17 2022" -A x64 "-DDAS_MODULES_INCLUDE=dasPUGIXML" -DDAS_TOOLS_DISABLED=OFF -DDAS_TESTS_DISABLED=ON -DDAS_TUTORIAL_DISABLED=ON -DDAS_AOT_EXAMPLES_DISABLED=ON -DDAS_FLEX_BISON_DISABLED=ON "-DCMAKE_PROJECT_INCLUDE=$compat"
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          cmake --build "$sdk/build-jupyter" --config Release --target libDaScriptDyn --parallel 4 -- /nodeReuse:false
+          cmake --build "$sdk/build-jupyter" --config Release --target daslang dasModulePUGIXML --parallel 4 -- /nodeReuse:false
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           "DAS_SDK=$sdk" >> $env:GITHUB_ENV
       - name: Build kernel artifacts and runtime bundle

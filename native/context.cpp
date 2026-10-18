@@ -6,6 +6,7 @@
 #include "notebook_files.h"
 #include "inspection.h"
 #include "profiling.h"
+#include "value_view.h"
 
 extern "C" __declspec(dllexport) const char *nb_runtime_hash() {
     return NB_RUNTIME_HASH;

@@ -68,7 +68,7 @@ def choose(x:string):string {return x+"!"}''')
 
     def test_package_and_spec(self):
         import daslang_jupyter
-        self.assertEqual(__version__, "0.11.0a1")
+        self.assertEqual(__version__, "0.12.0a1")
         self.assertIn("site-packages", str(Path(daslang_jupyter.__file__)))
         env = configuration(SDK)
         self.assertIn("site-packages", env["DAS_PARSER"])

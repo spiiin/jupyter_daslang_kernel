@@ -126,11 +126,11 @@ class WorkerClient:
                         raise WorkerCrashed(f"Runtime process exited ({code}). Last completed state is preserved.\n{detail}".rstrip())
                     if reply.get("id") != request.id:
                         continue
-                    if reply["status"] == "checkpoint_error" or "state" not in reply:
+                    if reply["status"] == "checkpoint_error" or ("state" not in reply and not reply.get("readonly")):
                         self._terminate(worker)
                         raise WorkerCrashed(reply.get("error", {}).get("evalue", "Could not checkpoint the runtime"))
                     if operation == "execute":
-                        self.state = reply["state"]
+                        self.state = reply.get("state", self.state)
                     self.active = None
                     reply["output"] = {name: "".join(chunks) for name, chunks in output.items()}
                     return reply

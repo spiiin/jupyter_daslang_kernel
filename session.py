@@ -4,9 +4,11 @@ import ctypes as C
 import os
 from pathlib import Path
 if __package__:
+    from .rich_display import PRELUDE as DISPLAY_PRELUDE, collect as collect_displays
     from .paths import native_path
     from .module_sources import ModuleSources, SOURCE_CALLBACK
 else:
+    from rich_display import PRELUDE as DISPLAY_PRELUDE, collect as collect_displays
     from paths import native_path
     from module_sources import ModuleSources, SOURCE_CALLBACK
 import re
@@ -114,6 +116,7 @@ class Runtime:
             function = getattr(self.bridge, name)
             function.restype, function.argtypes = result, args
         for name, result, args in (
+                ("nb_view_value", C.c_char_p, [C.c_void_p,C.c_char_p,C.c_uint32,C.c_uint32,C.c_uint32]),
                 ("nb_profile_start", None, [C.c_void_p]),
                 ("nb_profile_stop", C.c_char_p, [C.c_void_p]),
                 ("nb_inspection_policy", None, [C.c_void_p]),
@@ -129,6 +132,21 @@ class Runtime:
         self.native_modules = set(json.loads(self.bridge.nb_native_modules()))
         self.environment = self.environment_get_bound()
         self.set_root(str(self.sdk).encode())
+        self.register_project_modules()
+
+    def register_project_modules(self):
+        register = getattr(self.dll, "das_register_dynamic_modules", None)
+        if register is None or not (Path.cwd()/"modules").is_dir():
+            return
+        register.restype = C.c_int
+        register.argtypes = [C.c_void_p,C.c_char_p,C.c_void_p,C.c_uint32,C.c_void_p]
+        access = self.fileaccess_make_default()
+        try:
+            if register(access,str(Path.cwd()).encode(),None,0,None):
+                raise RuntimeError("Failed to register project modules")
+            self.native_modules=set(json.loads(self.bridge.nb_native_modules()))
+        finally:
+            self.fileaccess_release(access)
 
     def close(self):
         self.shutdown()
@@ -348,6 +366,9 @@ class NotebookSession:
                     mapping[len(lines)] = (origin["label"], row, excerpt)
 
         append("options gen2\noptions rtti\noptions persistent_heap\noptions gc\noptions disable_auto_inline\noptions disable_inline\noptions no_fast_call")
+        if re.search(r"\bdisplay(?:_\w+)?\s*\(", code+"\n"+"\n".join(definitions.values())):
+            append(DISPLAY_PRELUDE)
+            selection.update("-"+name for name in ("display","display_html","display_markdown","display_image","display_audio","djnb_emit","djnb_take_displays"))
         for key, requirement in requires.items():
             where = self.require_origins.get(key) if key not in cell.requires else None
             if key in cell.requires:
@@ -436,6 +457,7 @@ class NotebookSession:
         for key, requirement in (self.requires if requires is None else requires).items():
             where = (self.require_origins if require_origins is None else require_origins).get(key)
             append(re.sub(r"\s+", " ", requirement).strip().rstrip(";") + ";", where, where["line"] if where else 1)
+        append(DISPLAY_PRELUDE)
         append('var djnb_blob : array<uint8>\nvar djnb_result : string = ""\nvar djnb_error : string = ""\nvar djnb_failed : bool = false\nvar djnb_has_result : bool = false')
         constants = self.constants if constants is None else constants
         append('[export]\ndef djnb_result_present() : bool { return djnb_has_result }')
@@ -582,11 +604,15 @@ return "{value}"
     def execute(self, code, cell_label=None):
         self.last_timings = {}
         self.last_profile = None
+        self.last_displays = []
         started = time.perf_counter_ns()
         try:
             return self._execute(code, cell_label)
         finally:
             self.last_timings["total_ns"] = time.perf_counter_ns() - started
+            if self.current:
+                raw = C.c_char_p.from_buffer(self.current.call("djnb_take_displays")).value
+                self.last_displays = collect_displays(raw or b"[]")
 
     def _execute(self, code, cell_label=None):
         self.cell_counter += 1

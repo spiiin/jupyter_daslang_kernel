@@ -6,8 +6,9 @@ from pathlib import Path
 import subprocess
 import zipfile
 
-RUNTIME_COMMIT = "f916e0092ef38032dd81e8a55a231c3c4b4a5533"
+RUNTIME_COMMIT = "4651e8f3f541b933dfac403874a348d777e733cf"
 NOTICES = {
+    "modules/dasPUGIXML/pugixml/LICENSE.md": "licenses/PUGIXML.LICENSE",
     "LICENSE": "LICENSE",
     "THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md",
     "3rdparty/uriparser/COPYING": "licenses/URIPARSER.LICENSE",
@@ -32,11 +33,17 @@ def main():
     if changes.strip():
         parser.error("Runtime has tracked changes; use a clean pinned checkout")
     files = {sdk / source: target for source, target in NOTICES.items()}
-    for name in ("libDaScriptDyn.dll", "libDaScriptDyn_runtime.dll"):
+    for name in ("libDaScriptDyn.dll", "libDaScriptDyn_runtime.dll", "daslang.exe"):
         files[sdk / "bin/Release" / name] = "bin/" + name
     for file in sorted((sdk / "daslib").rglob("*")):
         if file.is_file() and file.suffix == ".das":
             files[file] = file.relative_to(sdk).as_posix()
+    for folder in ("utils", "dastest", "src/builtin", "modules/dasPUGIXML/daslib"):
+        for file in sorted((sdk / folder).rglob("*.das")):
+            files[file] = file.relative_to(sdk).as_posix()
+    for name in (".das_module", "dasModulePUGIXML.shared_module"):
+        file = sdk / "modules/dasPUGIXML" / name
+        files[file] = file.relative_to(sdk).as_posix()
     manifest = {"commit": commit, "platform": "win_amd64", "cpu": "AVX2",
                 "sha256": {target: hashlib.sha256(source.read_bytes()).hexdigest()
                            for source, target in files.items()}}
@@ -50,7 +57,8 @@ def main():
                          "Use only with the kernel wheel from the SAME release.\n"
                          "Windows x64 / AVX2 / Microsoft Visual C++ 2015-2022 x64 Redistributable required.\n"
                          "Set DAS_SDK to this extracted daslang-runtime directory.\n"
-                         "Optional native modules are disabled. See manifest.json and licenses/.\n")
+                         "Includes SDK tools and XML dependency for daspkg. Native package builds need a full development SDK.\n"
+                         "See manifest.json and licenses/.\n")
     print(destination)
 
 

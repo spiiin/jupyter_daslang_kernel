@@ -19,7 +19,7 @@ it does not interpret daslang in Python or replay previous cells.
 ## Runtime
 
 Windows x64, AVX2, Python 3.12, **pinned daslang commit**
-`f916e0092ef38032dd81e8a55a231c3c4b4a5533`. The paths below show the
+`4651e8f3f541b933dfac403874a348d777e733cf`. The paths below show the
 development checkout in `C:\src\daScript`; choose your own source or release
 runtime directory. The DLL and standard library must come from the same build. `Runtime` accepts either a source tree (`bin/Release`) or SDK (`bin`).
 Set `DAS_SDK` or pass `--sdk` to use another compatible SDK.
@@ -38,7 +38,7 @@ python -m unittest -v test_session
 cd C:\src\daslang-jupyter
 python -m pip install build setuptools wheel
 python build_package.py --sdk C:\src\daScript
-python -m pip install "dist/daslang_jupyter-0.11.0a1-py3-none-win_amd64.whl[lab]"
+python -m pip install "dist/daslang_jupyter-0.12.0a1-py3-none-win_amd64.whl[lab]"
 python -m daslang_jupyter install --sdk C:\src\daScript
 python -m jupyterlab examples/demo.ipynb
 ```
@@ -118,8 +118,8 @@ print("{y}; {twice()}\n")
 ### Build the current runtime
 
 ```powershell
-cmake -S C:\src\daScript -B C:\src\daScript\build-jupyter -G "Visual Studio 17 2022" -A x64 "-DDAS_MODULES_INCLUDE=" -DDAS_TOOLS_DISABLED=ON -DDAS_TESTS_DISABLED=ON -DDAS_TUTORIAL_DISABLED=ON -DDAS_AOT_EXAMPLES_DISABLED=ON -DDAS_FLEX_BISON_DISABLED=ON
-cmake --build C:\src\daScript\build-jupyter --config Release --target libDaScriptDyn --parallel 4 -- /nodeReuse:false
+cmake -S C:\src\daScript -B C:\src\daScript\build-jupyter -G "Visual Studio 17 2022" -A x64 "-DDAS_MODULES_INCLUDE=dasPUGIXML" -DDAS_TOOLS_DISABLED=OFF -DDAS_TESTS_DISABLED=ON -DDAS_TUTORIAL_DISABLED=ON -DDAS_AOT_EXAMPLES_DISABLED=ON -DDAS_FLEX_BISON_DISABLED=ON
+cmake --build C:\src\daScript\build-jupyter --config Release --target daslang dasModulePUGIXML --parallel 4 -- /nodeReuse:false
 ```
 
 On MSVC 19.38, configure once more with
@@ -294,7 +294,7 @@ xeus implementation remains an option once the session semantics are stable.
 
 The wheel includes the parser and context adapter DLLs. The daslang runtime and
 standard library remain external: use the exact compatible build. This version
-was tested against master commit `f916e0092ef38032dd81e8a55a231c3c4b4a5533`.
+was tested against master commit `4651e8f3f541b933dfac403874a348d777e733cf`.
 The adapter fingerprints the runtime DLL and rejects a different build. Rebuild
 the wheel after rebuilding the runtime. The native binaries require Windows x64,
 AVX2 and the matching Microsoft Visual C++ runtime; Python 3.12 or later is needed.
@@ -704,3 +704,175 @@ normal completion and runtime errors. Runtime errors produce the ordinary error
 reply rather than a profile report.
 
 See [the timing and profiling notebook](examples/profiling-demo.ipynb).
+
+
+## Rich display and notebook tools (0.12)
+
+These features require the matching full SDK or the 0.12 runtime bundle. SDK tools
+run in owned child processes with timeouts and Windows kill-on-close jobs: Interrupt
+or kernel termination also stops their descendants. `%reset` closes an active debug
+session. Runtime checkpoints still disappear on kernel restart.
+
+### Tables, images and audio
+
+```das
+display(rows)                         // arrays/structs/scalars: HTML table + text
+display_markdown("**Result**")
+display_html("<b>Explicit HTML</b>")
+display_image("result.png")           // PNG, JPEG, SVG
+display_audio("result.wav")           // WAV player
+```
+
+The normal code cell executes once; display messages are emitted as standard Jupyter
+`display_data` and saved with the notebook. JSON table text is escaped, limited to
+50 rows and 30 columns, with shortened nested values. Explicit HTML/SVG are user
+content handled by Jupyter's normal trust rules. Each cell allows at most 100 display
+calls and 8 MiB of payload, and each media file at most 8 MiB. Displays are collected
+after execution; file-read/format errors do not roll back committed state. Successful
+displays before a runtime error are retained. Benchmark trial displays are discarded.
+There is no separate variable-inspector panel; explicit `%vars` / `%view` commands are available below.
+
+### Standalone .das export
+
+```das
+%%export "experiment.das"
+print("{answer()}\n")
+```
+
+`%export PATH` exports a snapshot with an empty main body; `%%export PATH` supplies
+the body to run. Current definitions and checkpoint-compatible root-global values
+(including arrays, tables, plain structs and readonly bindings) are included. Values
+are encoded with the existing archive format and loaded by generated `main`; old
+notebook cells are not replayed. The output is compiled before atomic replacement.
+Run it using the **matching** `daslang.exe`. Macros still run at compile time.
+
+`--definitions-only` omits saved values and leaves global declarations at their
+default values. Dependencies must still be available: this is source export, not a
+self-contained executable or a module packager. Relative imports must remain
+resolvable from the output file/project directory. Export cannot restore mutable
+imported-module state or native resources, and a stored `main` must be renamed
+before generating the standalone entry point. These same export restrictions apply
+to isolated notebook tests, coverage and debugging.
+
+### Packages and modules
+
+```text
+%pkg search json
+%pkg install PACKAGE_OR_LOCAL_PATH
+%pkg list
+%pkg check
+%modules
+```
+
+The commands use the SDK's real daspkg, in the notebook working directory; it owns
+`modules/` and `daspkg.lock`. `update`, `upgrade`, `build` and `doctor` are also
+available. No automatic package installation occurs. Global/root/force overrides,
+registry publishing and cleanup are intentionally not exposed by this notebook API.
+Package manifests can run build logic. Native packages require a full development
+SDK and C++ toolchain; the runtime bundle supports pure packages and running already
+built compatible modules. Project descriptors are registered when the worker starts
+and after package changes. Updating an already loaded native DLL can require a
+kernel restart. A serializable script module can be imported in later cells;
+persistent pointers/resources retain the existing stateful-kernel restrictions.
+
+### Tests and coverage
+
+```das
+%%test
+assert(value==42)
+value=99
+```
+
+Assertions run in a standalone snapshot; `value` in the notebook stays unchanged.
+Use `verify(...)` when an assertion expression calls a function with side effects.
+A failed assertion produces a normal error reply. `%test PATH [OPTIONS]` runs SDK
+`dastest` files/directories, including its test-selection and report options.
+
+```das
+%%coverage --output report.lcov
+if (value==42) { value+=1 } else { value=0 }
+```
+
+Coverage uses SDK dascov instrumentation, filtered to user-mapped notebook lines
+and branches. It reports hits/misses without committing changes. Optional LCOV
+export saves a companion `.source.das` so the report's source references remain
+usable after temporary-file cleanup. File/network effects and module lifecycle
+hooks in these standalone processes are real and are not rolled back.
+
+### Compiler-backed language help
+
+```das
+%%check
+some_function(value)
+```
+
+`%%check` runs the SDK's LSP validation subtool without simulating the cell. It
+reports compiler errors and user-code lint diagnostics with cell line numbers.
+`%definition FUNCTION_CALL` uses the SDK definition lookup; imported symbols can
+point to actual module files. `%lsp on` enables compiler-backed Shift+Tab/contextual
+help using the same SDK hover implementation; `%lsp off` returns to local metadata.
+The first request can be slower while SDK scripts compile. Local completion remains
+available when compiler-backed help fails. Compile-time macros can still have
+external effects. This is on-demand kernel help/diagnostics, not a JupyterLab LSP
+extension providing continuous editor underlines or workspace refactoring.
+
+### Isolated DAP debugger
+
+```das
+%%debug --break 2
+value+=1
+print("{value}\n")
+```
+
+Breakpoints use the original cell's 1-based line numbers (the body begins on line
+2). With no `--break`, line 2 is used. A real SDK DAP server runs an unoptimized
+standalone snapshot, so notebook state is preserved:
+
+```text
+%debug stack
+%debug scopes
+%debug eval value
+%debug next
+%debug in
+%debug out
+%debug continue
+%debug wait
+%debug stop
+```
+
+`%debug variables REF` expands a DAP scope/reference. `--break 2,5` sets several
+body breakpoints; stack frames include their notebook cell/line mapping. Commands
+return DAP results as text, and normal termination cleans up the owned process and
+source file. This first debugger integration is controlled through notebook magics;
+it does not advertise JupyterLab's graphical debugger protocol. It does not attach
+to unrelated processes or write values back to the notebook. Debug/test/export
+snapshots include current root values, so consider their contents before sharing
+exported scripts or coverage source files.
+
+See [the notebook tools example](examples/notebook-tools-demo.ipynb).
+
+
+### Read-only variable views
+
+```text
+%vars
+%view players
+%view primes --start 100 --count 20
+%view player --depth 4
+```
+
+`%vars` lists root notebook variables, declared types, let/var bindings and bounded
+previews. `--start` and `--count` also paginate this list. `%view NAME` reads one
+root variable directly through native RTTI; expressions, getters and user functions
+are never invoked. It does not compile or replay a cell, and the worker does not
+reserialize or replace the checkpoint for read-only tool replies.
+
+Arrays of structures use tables; structures, nested arrays and tables use native
+HTML disclosure trees. These are saved snapshots of values at the time of the
+command, not live widgets. Use another command to refresh or fetch a different
+range. Defaults: 50 entries, depth 4; maximums: 100 entries, depth 8, 500 nodes,
+50 fields per structure, 30 table columns, 200 UTF-8 bytes per string preview.
+Very sparse hash tables stop scanning after one million slots; this is reported
+in the output. Table order follows native hash storage and can change after
+mutations. `NaN`/infinities are represented as text. Imported private globals and
+native resource handles are not exposed by this root-variable viewer.

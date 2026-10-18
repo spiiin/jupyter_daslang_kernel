@@ -3,7 +3,7 @@
 Repository: https://github.com/spiiin/jupyter_daslang_kernel
 
 Supported and locally verified: **Windows x64, AVX2, Python 3.12, JupyterLab 4.2.5**.
-daslang is pinned to `f916e0092ef38032dd81e8a55a231c3c4b4a5533`.
+daslang is pinned to `4651e8f3f541b933dfac403874a348d777e733cf`.
 Other Python/JupyterLab versions in dependency ranges are not yet certified.
 Linux/macOS kernel execution is unsupported. JupyterLab frontend is platform independent.
 
@@ -41,13 +41,13 @@ manager uses the older proxy API. Newer JupyterLab releases need separate testin
 ```powershell
 git clone https://github.com/spiiin/jupyter_daslang_kernel.git
 git clone --recursive https://github.com/GaijinEntertainment/daScript.git daslang
-git -C daslang checkout f916e0092ef38032dd81e8a55a231c3c4b4a5533
+git -C daslang checkout 4651e8f3f541b933dfac403874a348d777e733cf
 git -C daslang submodule update --init --recursive
 cd jupyter_daslang_kernel
 $env:DAS_SDK = (Resolve-Path ..\daslang).Path
 python -m pip install -r requirements-build.txt
-cmake -S $env:DAS_SDK -B "$env:DAS_SDK/build-jupyter" -G "Visual Studio 17 2022" -A x64 "-DDAS_MODULES_INCLUDE=" -DDAS_TOOLS_DISABLED=ON -DDAS_TESTS_DISABLED=ON -DDAS_TUTORIAL_DISABLED=ON -DDAS_AOT_EXAMPLES_DISABLED=ON -DDAS_FLEX_BISON_DISABLED=ON "-DCMAKE_PROJECT_INCLUDE=$((Get-Location).Path.Replace('\','/'))/msvc-compat.cmake"
-cmake --build "$env:DAS_SDK/build-jupyter" --config Release --target libDaScriptDyn --parallel 4 -- /nodeReuse:false
+cmake -S $env:DAS_SDK -B "$env:DAS_SDK/build-jupyter" -G "Visual Studio 17 2022" -A x64 "-DDAS_MODULES_INCLUDE=dasPUGIXML" -DDAS_TOOLS_DISABLED=OFF -DDAS_TESTS_DISABLED=ON -DDAS_TUTORIAL_DISABLED=ON -DDAS_AOT_EXAMPLES_DISABLED=ON -DDAS_FLEX_BISON_DISABLED=ON "-DCMAKE_PROJECT_INCLUDE=$((Get-Location).Path.Replace('\','/'))/msvc-compat.cmake"
+cmake --build "$env:DAS_SDK/build-jupyter" --config Release --target daslang dasModulePUGIXML --parallel 4 -- /nodeReuse:false
 python build_package.py --sdk $env:DAS_SDK
 python -m build --sdist --no-isolation
 python build_runtime_bundle.py --sdk $env:DAS_SDK
@@ -83,3 +83,5 @@ Tag builds rerun all checks before publishing. A manual build does not publish.
 PyPI/npm publishing is intentionally not configured: GitHub releases are the
 initial distribution channel. A future PyPI upload needs account authorization
 or a configured trusted publisher and must keep the paired runtime download clear.
+
+The runtime bundle includes `daslang.exe`, SDK tool scripts and the XML module required by daspkg. Native package compilation additionally needs a full development SDK and C++ toolchain.
